@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>fish_bridge — Session Graph</title>
+  <link rel="stylesheet" href="viewer.css">
+</head>
+<body>
+  <div id="header">
+    <h1>🐟 fish_bridge</h1>
+    <span id="session-label">Loading...</span>
+    <span id="stats"></span>
+    <div id="session-switcher" style="display:none">
+      <label for="session-select" title="Switch to a different session database">Session:</label>
+      <select id="session-select" onchange="switchSession(this.value)"></select>
+    </div>
+  </div>
+
+  <div id="sidebar">
+    <div class="filter-section">
+      <h3>Node Types</h3>
+      <p class="section-desc">Each shape represents a category. Check/uncheck to show or hide that type in the graph.</p>
+      <label title="Open question awaiting an answer"><input type="checkbox" class="type-filter" value="question" checked>
+        <svg class="type-swatch" viewBox="0 0 16 16"><ellipse cx="8" cy="8" rx="7" ry="5" fill="#ed8936"/></svg>
+        Questions</label>
+      <label title="Architectural or design decision — proposed or adopted"><input type="checkbox" class="type-filter" value="decision" checked>
+        <svg class="type-swatch" viewBox="0 0 16 16"><polygon points="8,1 15,8 8,15 1,8" fill="#4299e1"/></svg>
+        Decisions</label>
+      <label title="Action item or work to be done"><input type="checkbox" class="type-filter" value="task" checked>
+        <svg class="type-swatch" viewBox="0 0 16 16"><polygon points="8,1 15,15 1,15" fill="#48bb78"/></svg>
+        Tasks</label>
+      <label title="Bug, failure, or problem that was encountered"><input type="checkbox" class="type-filter" value="error" checked>
+        <svg class="type-swatch" viewBox="0 0 16 16"><polygon points="8,1 10,6 15,6 11,9 13,15 8,11 3,15 5,9 1,6 6,6" fill="#f56565"/></svg>
+        Errors</label>
+      <label title="Tool, library, or technique involved in the session"><input type="checkbox" class="type-filter" value="skill" checked>
+        <svg class="type-swatch" viewBox="0 0 16 16"><polygon points="8,1 14,4 14,12 8,15 2,12 2,4" fill="#9f7aea"/></svg>
+        Skills</label>
+      <label title="Key idea, component, or system discussed"><input type="checkbox" class="type-filter" value="concept" checked>
+        <svg class="type-swatch" viewBox="0 0 16 16"><rect x="1" y="3" width="14" height="10" rx="2" fill="#a0aec0"/></svg>
+        Concepts</label>
+      <label title="Source file, config, or document referenced"><input type="checkbox" class="type-filter" value="file" checked>
+        <svg class="type-swatch" viewBox="0 0 16 16"><rect x="1" y="1" width="14" height="14" fill="#38b2ac"/></svg>
+        Files</label>
+    </div>
+    <div class="filter-section">
+      <h3>Status Filter</h3>
+      <p class="section-desc">Lifecycle state of each node. Unchecked = hidden in graph. Resolved/Done are hidden by default to reduce noise.</p>
+      <label title="Open and currently relevant"><input type="checkbox" class="status-filter" value="active"      checked><span class="status-dot" style="background:#e2e8f0"></span> Active</label>
+      <label title="Being actively worked on right now"><input type="checkbox" class="status-filter" value="in_progress" checked><span class="status-dot" style="background:#f59e0b"></span> In Progress</label>
+      <label title="Decision accepted and implemented"><input type="checkbox" class="status-filter" value="adopted"     checked><span class="status-dot" style="background:#22c55e"></span> Adopted</label>
+      <label title="Put forward but not yet decided"><input type="checkbox" class="status-filter" value="proposed"    checked><span class="status-dot" style="background:#38bdf8"></span> Proposed</label>
+      <label title="Waiting on a dependency or input"><input type="checkbox" class="status-filter" value="pending"     checked><span class="status-dot" style="background:#67e8f9"></span> Pending</label>
+      <label title="Cannot proceed — needs resolution before continuing"><input type="checkbox" class="status-filter" value="blocked"     checked><span class="status-dot" style="background:#ef4444"></span> Blocked</label>
+      <label title="New information contradicts an earlier accepted item"><input type="checkbox" class="status-filter" value="conflicted"  checked><span class="status-dot" style="background:#eab308"></span> Conflicted</label>
+      <label title="Question answered or issue closed — hidden by default"><input type="checkbox" class="status-filter" value="resolved"          ><span class="status-dot" style="background:#4ade80;opacity:0.5"></span> Resolved</label>
+      <label title="Task fully completed — hidden by default"><input type="checkbox" class="status-filter" value="done"              ><span class="status-dot" style="background:#4ade80;opacity:0.5"></span> Done</label>
+      <label title="Bug or error that has been corrected — hidden by default"><input type="checkbox" class="status-filter" value="fixed"             ><span class="status-dot" style="background:#4ade80;opacity:0.5"></span> Fixed</label>
+      <label title="Deliberately postponed — hidden by default"><input type="checkbox" class="status-filter" value="deferred"          ><span class="status-dot" style="background:#64748b;opacity:0.5"></span> Deferred</label>
+      <label title="Extracted by AI but not yet manually verified"><input type="checkbox" class="status-filter" value="unconfirmed"       ><span class="status-dot" style="background:#6b7280;opacity:0.6"></span> Unconfirmed</label>
+    </div>
+    <div class="filter-section">
+      <h3>Chart Guide</h3>
+      <p class="section-desc">Each node's <strong>border color and style</strong> shows its status at a glance. Node <strong>fill color</strong> shows its type.</p>
+      <div class="legend-item"><span class="legend-ring" style="border-color:#e2e8f0"></span> Active</div>
+      <div class="legend-item"><span class="legend-ring" style="border-color:#f59e0b;border-width:3px"></span> In Progress</div>
+      <div class="legend-item"><span class="legend-ring" style="border-color:#22c55e;border-width:3px"></span> Adopted</div>
+      <div class="legend-item"><span class="legend-ring" style="border-color:#38bdf8"></span> Proposed</div>
+      <div class="legend-item"><span class="legend-ring" style="border-color:#67e8f9"></span> Pending</div>
+      <div class="legend-item"><span class="legend-ring" style="border-color:#ef4444;border-width:4px"></span> Blocked</div>
+      <div class="legend-item"><span class="legend-ring" style="border-color:#eab308;border-width:4px"></span> Conflicted</div>
+      <div class="legend-item"><span class="legend-ring" style="border-color:#4ade80;border-style:dashed;opacity:0.5"></span> Done / Resolved <span class="legend-hint">(faded)</span></div>
+      <div class="legend-item"><span class="legend-ring" style="border-color:#64748b;border-style:dashed;opacity:0.45"></span> Deferred <span class="legend-hint">(faded)</span></div>
+    </div>
+    <div class="filter-section">
+      <h3>Layout</h3>
+      <p class="section-desc">Rearrange nodes. Click a node first to keep it selected after re-layout.</p>
+      <button title="Force-directed — good for dense graphs" onclick="runLayout('cose')">CoSE (default)</button>
+      <button title="Hierarchical tree from top — good for flow" onclick="runLayout('breadthfirst')">Tree</button>
+      <button title="Arrange all nodes in a circle" onclick="runLayout('circle')">Circle</button>
+      <button title="Evenly-spaced grid" onclick="runLayout('grid')">Grid</button>
+    </div>
+    <div class="filter-section">
+      <h3>Export</h3>
+      <button id="export-btn" title="Save the current graph view as a PNG image" onclick="exportPNG()">Export PNG</button>
+      <button id="fit-btn"    title="Zoom to fit all visible nodes in view" onclick="cy.fit()">Fit View</button>
+    </div>
+  </div>
+
+  <div id="cy"></div>
+
+  <div id="detail-panel" class="hidden">
+    <button id="close-detail" onclick="closeDetail()">✕</button>
+    <h3 id="detail-label"></h3>
+    <p id="detail-type"></p>
+    <p id="detail-status"></p>
+    <p id="detail-summary"></p>
+    <p id="detail-confidence"></p>
+    <button id="edit-btn" onclick="openEdit()">✎ Edit</button>
+  </div>
+
+  <div id="edit-panel" class="hidden">
+    <button id="close-edit" onclick="closeEdit()">✕</button>
+    <h3 id="edit-label"></h3>
+    <label class="edit-field-label" for="edit-status">Status</label>
+    <select id="edit-status">
+      <option value="active">active</option>
+      <option value="proposed">proposed</option>
+      <option value="pending">pending</option>
+      <option value="in_progress">in_progress</option>
+      <option value="adopted">adopted</option>
+      <option value="resolved">resolved</option>
+      <option value="done">done</option>
+      <option value="fixed">fixed</option>
+      <option value="deferred">deferred</option>
+      <option value="rejected">rejected</option>
+      <option value="blocked">blocked</option>
+      <option value="unconfirmed">unconfirmed</option>
+      <option value="conflicted">conflicted</option>
+      <option value="superseded">superseded</option>
+    </select>
+    <label class="edit-field-label" for="edit-summary">Summary</label>
+    <textarea id="edit-summary" rows="5" placeholder="Node summary…"></textarea>
+    <div id="edit-actions">
+      <button id="save-btn" onclick="saveEdit()">Save</button>
+      <button id="cancel-btn" onclick="closeEdit()">Cancel</button>
+    </div>
+    <p id="edit-status-msg"></p>
+  </div>
+
+  <script src="cytoscape.min.js"></script>
+  <script src="viewer.js"></script>
+</body>
+</html>

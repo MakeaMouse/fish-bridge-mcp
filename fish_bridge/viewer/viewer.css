@@ -1,0 +1,281 @@
+/* fish_bridge graph viewer styles */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  display: grid;
+  grid-template-rows: 48px 1fr;
+  grid-template-columns: 220px 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#header {
+  grid-column: 1 / -1;
+  background: #16213e;
+  border-bottom: 1px solid #0f3460;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 16px;
+  height: 48px;
+}
+#header h1 { font-size: 16px; font-weight: 700; color: #e94560; }
+#session-label { font-size: 13px; color: #a0aec0; }
+#stats { font-size: 12px; color: #718096; margin-left: auto; }
+
+#session-switcher {
+  display: none;  /* shown by JS only when >1 session exists */
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #a0aec0;
+}
+#session-select {
+  background: #0f3460;
+  color: #e2e8f0;
+  border: 1px solid #2d3748;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+#session-select:focus { outline: none; border-color: #4299e1; }
+
+#sidebar {
+  background: #16213e;
+  border-right: 1px solid #0f3460;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.filter-section {
+  margin-bottom: 16px;
+}
+.filter-section h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #718096;
+  margin-bottom: 4px;
+}
+/* One-line description under each section header */
+.section-desc {
+  font-size: 11px;
+  color: #4a5568;
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+.section-desc strong {
+  color: #64748b;
+  font-weight: 600;
+}
+.filter-section label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 0;
+  user-select: none;
+}
+.filter-section label:hover { color: #e94560; }
+.filter-section input[type="checkbox"] { flex-shrink: 0; }
+
+/* Inline SVG shape swatches for node-type legend */
+.type-swatch {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* Tiny filled circle for status filter rows */
+.status-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.filter-section button {
+  background: #0f3460;
+  color: #e0e0e0;
+  border: 1px solid #1a4a7a;
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  margin: 2px 2px 2px 0;
+  transition: background 0.15s;
+}
+.filter-section button:hover { background: #e94560; border-color: #e94560; }
+
+#cy {
+  background: #1a1a2e;
+  width: 100%;
+  height: 100%;
+}
+
+/* Detail panel */
+#detail-panel {
+  position: absolute;
+  right: 16px;
+  top: 64px;
+  width: 280px;
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 8px;
+  padding: 16px;
+  z-index: 100;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+}
+#detail-panel.hidden { display: none; }
+#close-detail {
+  position: absolute;
+  top: 8px; right: 10px;
+  background: none; border: none;
+  color: #718096; font-size: 16px; cursor: pointer;
+}
+#close-detail:hover { color: #e94560; }
+#detail-label  { font-size: 15px; font-weight: 700; margin-bottom: 8px; word-break: break-word; }
+#detail-type   { font-size: 12px; color: #718096; margin-bottom: 4px; }
+#detail-status { font-size: 12px; color: #a0aec0; margin-bottom: 8px; }
+#detail-summary { font-size: 13px; line-height: 1.5; word-break: break-word; margin-bottom: 8px; }
+#detail-confidence { font-size: 11px; color: #718096; }
+
+/* Status legend — ring shapes that mirror the node border styles */
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 2px 0;
+  color: #a0aec0;
+}
+.legend-ring {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #e2e8f0;
+  background: transparent;
+  flex-shrink: 0;
+}
+
+/* Keep old legend-dot for any leftover uses */
+.legend-dot {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  background: #4a5568;
+  flex-shrink: 0;
+}
+/* Muted annotation inside legend rows */
+.legend-hint {
+  font-size: 10px;
+  color: #4a5568;
+  margin-left: 2px;
+}
+
+/* Edit button inside detail panel */
+#edit-btn {
+  margin-top: 10px;
+  background: #0f3460;
+  color: #e0e0e0;
+  border: 1px solid #1a4a7a;
+  border-radius: 4px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.15s;
+}
+#edit-btn:hover { background: #e94560; border-color: #e94560; }
+
+/* Edit panel */
+#edit-panel {
+  position: absolute;
+  right: 16px;
+  top: 64px;
+  width: 300px;
+  background: #16213e;
+  border: 1px solid #e94560;
+  border-radius: 8px;
+  padding: 16px;
+  z-index: 110;
+  box-shadow: 0 4px 28px rgba(0,0,0,0.6);
+}
+#edit-panel.hidden { display: none; }
+#close-edit {
+  position: absolute;
+  top: 8px; right: 10px;
+  background: none; border: none;
+  color: #718096; font-size: 16px; cursor: pointer;
+}
+#close-edit:hover { color: #e94560; }
+#edit-panel h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; word-break: break-word; }
+
+.edit-field-label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #718096;
+  margin: 8px 0 4px;
+}
+
+#edit-status {
+  width: 100%;
+  background: #0f3460;
+  color: #e0e0e0;
+  border: 1px solid #1a4a7a;
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-size: 13px;
+}
+
+#edit-summary {
+  width: 100%;
+  background: #0f3460;
+  color: #e0e0e0;
+  border: 1px solid #1a4a7a;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 13px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+#edit-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+#save-btn, #cancel-btn {
+  flex: 1;
+  padding: 6px 0;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid #1a4a7a;
+  transition: background 0.15s;
+}
+#save-btn   { background: #e94560; color: #fff; border-color: #e94560; }
+#save-btn:hover   { background: #c73652; }
+#cancel-btn { background: #0f3460; color: #e0e0e0; }
+#cancel-btn:hover { background: #1a4a7a; }
+
+#edit-status-msg {
+  font-size: 11px;
+  margin-top: 8px;
+  min-height: 14px;
+  color: #a0aec0;
+}

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "fish-bridge": {
+      "command": "uvx",
+      "args": ["fish-bridge-mcp"],
+      "env": {
+        "FISH_BRIDGE_BACKEND": "local",
+        "FISH_BRIDGE_PROJECT": "${workspaceFolder}"
+      }
+    }
+  }
+}

@@ -30,6 +30,7 @@ class ChatTurnIngestor(AbstractIngestor):
         text: str | None = None,
         file_path: Path | str | None = None,
         session_id: str = "pasted",
+        source: str = "paste",
         **kwargs,
     ) -> list[RawTurn]:
         """Parse turns from either raw text or a file path.
@@ -38,11 +39,12 @@ class ChatTurnIngestor(AbstractIngestor):
             text:       Raw chat text (user/assistant pairs).
             file_path:  Path to a file (Claude JSON export, plain text).
             session_id: Session identifier for produced RawTurns.
+            source:     Source tag written to each RawTurn (e.g. 'paste', 'jetbrains').
         """
         if file_path is not None:
             return self._from_file(Path(file_path), session_id)
         if text is not None:
-            return self._from_text(text, session_id)
+            return self._from_text(text, session_id, source=source)
         return []
 
     # ------------------------------------------------------------------
@@ -123,20 +125,21 @@ class ChatTurnIngestor(AbstractIngestor):
     # ------------------------------------------------------------------
 
     # Patterns for common AI chat export formats
+    # JetBrains Copilot Chat uses "Me:" for user and "GitHub Copilot:" for assistant.
     _USER_PATTERNS = [
-        re.compile(r"^(?:You|User|Human):\s*", re.IGNORECASE | re.MULTILINE),
-        re.compile(r"^#+\s*(?:You|User|Human)\s*$", re.IGNORECASE | re.MULTILINE),
+        re.compile(r"^(?:You|User|Human|Me):\s*", re.IGNORECASE | re.MULTILINE),
+        re.compile(r"^#+\s*(?:You|User|Human|Me)\s*$", re.IGNORECASE | re.MULTILINE),
     ]
     _ASST_PATTERNS = [
-        re.compile(r"^(?:Assistant|Claude|Copilot|GPT|AI):\s*", re.IGNORECASE | re.MULTILINE),
-        re.compile(r"^#+\s*(?:Assistant|Claude|Copilot|GPT|AI)\s*$", re.IGNORECASE | re.MULTILINE),
+        re.compile(r"^(?:Assistant|Claude|Copilot|GitHub Copilot|GPT|AI):\s*", re.IGNORECASE | re.MULTILINE),
+        re.compile(r"^#+\s*(?:Assistant|Claude|Copilot|GitHub Copilot|GPT|AI)\s*$", re.IGNORECASE | re.MULTILINE),
     ]
 
-    def _from_text(self, text: str, session_id: str) -> list[RawTurn]:
+    def _from_text(self, text: str, session_id: str, source: str = "paste") -> list[RawTurn]:
         """Split plain text into user/assistant turns using delimiter patterns."""
-        # Try to split by "User:" / "Assistant:" style markers
+        # Try to split by "User:" / "Assistant:" / "Me:" / "GitHub Copilot:" style markers
         segments = re.split(
-            r"\n(?=(?:You|User|Human|Assistant|Claude|Copilot|GPT|AI)\s*:)",
+            r"\n(?=(?:You|User|Human|Me|Assistant|Claude|Copilot|GitHub Copilot|GPT|AI)\s*:)",
             text,
             flags=re.IGNORECASE,
         )
@@ -150,8 +153,8 @@ class ChatTurnIngestor(AbstractIngestor):
             seg = seg.strip()
             if not seg:
                 continue
-            if re.match(r"^(?:You|User|Human)\s*:", seg, re.IGNORECASE):
-                content = re.sub(r"^(?:You|User|Human)\s*:\s*", "", seg, flags=re.IGNORECASE)
+            if re.match(r"^(?:You|User|Human|Me)\s*:", seg, re.IGNORECASE):
+                content = re.sub(r"^(?:You|User|Human|Me)\s*:\s*", "", seg, flags=re.IGNORECASE)
                 if pending_user and pending_asst:
                     turn_number += 1
                     turns.append(
@@ -160,14 +163,14 @@ class ChatTurnIngestor(AbstractIngestor):
                             turn_number=turn_number,
                             role_user=pending_user.strip(),
                             role_assistant=pending_asst.strip(),
-                            source="paste",
+                            source=source,
                         )
                     )
                     pending_asst = ""
                 pending_user = content.strip()
-            elif re.match(r"^(?:Assistant|Claude|Copilot|GPT|AI)\s*:", seg, re.IGNORECASE):
+            elif re.match(r"^(?:Assistant|Claude|Copilot|GitHub Copilot|GPT|AI)\s*:", seg, re.IGNORECASE):
                 content = re.sub(
-                    r"^(?:Assistant|Claude|Copilot|GPT|AI)\s*:\s*", "", seg, flags=re.IGNORECASE
+                    r"^(?:Assistant|Claude|Copilot|GitHub Copilot|GPT|AI)\s*:\s*", "", seg, flags=re.IGNORECASE
                 )
                 pending_asst = content.strip()
             else:
@@ -177,7 +180,7 @@ class ChatTurnIngestor(AbstractIngestor):
                 else:
                     pending_user = seg
 
-        # Flush
+        # Flush remaining pending turn
         if pending_user:
             turn_number += 1
             turns.append(
@@ -186,7 +189,7 @@ class ChatTurnIngestor(AbstractIngestor):
                     turn_number=turn_number,
                     role_user=pending_user.strip(),
                     role_assistant=pending_asst.strip(),
-                    source="paste",
+                    source=source,
                 )
             )
 
@@ -198,7 +201,7 @@ class ChatTurnIngestor(AbstractIngestor):
                     turn_number=1,
                     role_user=text.strip(),
                     role_assistant="",
-                    source="paste",
+                    source=source,
                 )
             )
 
@@ -209,16 +212,17 @@ class ChatTurnIngestor(AbstractIngestor):
     # ------------------------------------------------------------------
 
     @classmethod
-    def open_editor(cls) -> str:
+    def open_editor(cls, prompt: str | None = None) -> str:
         """Open $EDITOR (or 'vi') for the user to paste chat text.
         Returns the typed/pasted content.
         """
         import os
         editor = os.environ.get("EDITOR", "vi")
+        header = prompt or "# Paste your chat exchange below, then save and quit.\n\n"
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".txt", delete=False, encoding="utf-8"
         ) as tf:
-            tf.write("# Paste your chat exchange below, then save and quit.\n\n")
+            tf.write(header)
             tmp_path = tf.name
         try:
             subprocess.run([editor, tmp_path], check=True)

@@ -33,7 +33,7 @@ class TestActiveThreadCompiler:
         assert "redis" in xml
         assert "</fish_bridge>" in xml
 
-    def test_resolved_nodes_show_count_only(self):
+    def test_resolved_nodes_listed_in_summary(self):
         nodes = [
             _make_node("OldBug", NodeType.ERROR, NodeStatus.FIXED),
             _make_node("ActiveQ", NodeType.QUESTION, NodeStatus.ACTIVE),
@@ -41,7 +41,10 @@ class TestActiveThreadCompiler:
         compiler = ActiveThreadCompiler("s")
         xml = compiler.compile(nodes, [])
         assert "resolved_this_session" in xml
-        assert "OldBug" not in xml  # resolved nodes should NOT appear in body
+        # Resolved items must appear in the summary block (so AI knows what is done)
+        assert "OldBug" in xml
+        # But resolved items must NOT appear in the live error/task/decision sections
+        assert "<error" not in xml or "OldBug" not in xml.split("<resolved_this_session")[0]
 
     def test_xml_special_chars_escaped(self):
         node = _make_node("Redis & friends <fast>", NodeType.CONCEPT, NodeStatus.ACTIVE)

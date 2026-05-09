@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "fish-bridge": {
+      "command": "uvx",
+      "args": ["fish-bridge-mcp"],
+      "env": {
+        "FISH_BRIDGE_BACKEND": "claude",
+        "ANTHROPIC_API_KEY": "<your-key-here>",
+        "FISH_BRIDGE_PROJECT": "${workspaceFolder}"
+      }
+    }
+  }
+}

@@ -1,6 +1,7 @@
 """Abstract extraction backend + post-extraction quality pipeline.
 
 Pipeline steps implemented here:
+  [0.5] Content-zone pre-processor (code blocks, stack traces, URLs, file refs)
   [1]  Chunk turn if > MAX_TURN_TOKENS chars (split by paragraph)
   [3]  Pydantic schema validation
   [3a] Grounding check — phantom entity prevention
@@ -8,8 +9,11 @@ Pipeline steps implemented here:
 """
 from __future__ import annotations
 
+import os
 import re
+import sys
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -24,6 +28,40 @@ from fish_bridge.graph.schema import (
 
 MAX_TURN_CHARS = 6000   # ~1500 tokens; chunk turns longer than this
 UNCONFIRMED_CONFIDENCE_THRESHOLD = 0.50
+
+# ---------------------------------------------------------------------------
+# Cloud backend PII warning
+# ---------------------------------------------------------------------------
+
+def warn_cloud_backend_once(backend_name: str) -> None:
+    """Print a one-time warning when a cloud extraction backend is first used.
+
+    The sentinel file prevents the warning from repeating on every run.
+    Users are informed they can switch to a local backend for offline/private mode.
+    """
+    _env_cfg = os.environ.get("FISH_BRIDGE_CONFIG")
+    sentinel = (
+        Path(_env_cfg).parent / ".cloud_backend_warned"
+        if _env_cfg
+        else Path.home() / ".fish_bridge" / ".cloud_backend_warned"
+    )
+    if sentinel.exists():
+        return
+    print(
+        f"\n⚠  fish_bridge: cloud backend '{backend_name}' is active.\n"
+        "   Turn text is sent to the provider's API for graph extraction.\n"
+        "   Ensure no passwords, API keys, or private credentials are in your chat turns.\n"
+        "   Default PII patterns are masked, but regex masking is not guaranteed to be complete.\n"
+        "   For fully offline operation: set 'extraction.backend: local' in config.yaml\n"
+        "   and run Ollama locally (https://ollama.com).\n"
+        "   (This warning appears once. See docs/configuration.md#privacy for details.)\n",
+        file=sys.stderr,
+    )
+    try:
+        sentinel.parent.mkdir(parents=True, exist_ok=True)
+        sentinel.touch()
+    except OSError:
+        pass  # failure to write sentinel is non-fatal
 
 
 class AbstractExtractionBackend(ABC):
@@ -42,6 +80,18 @@ class AbstractExtractionBackend(ABC):
         """Full extraction pipeline for one RawTurn."""
         user_text = self._mask(turn.role_user, exclude_patterns)
         asst_text = self._mask(turn.role_assistant, exclude_patterns)
+
+        # [0.5] Content-zone pre-processor
+        try:
+            from fish_bridge.extraction.preprocessor import preprocess
+            hints = preprocess(user_text, asst_text)
+            if not hints.is_empty():
+                hints_section = hints.to_prompt_section()
+                user_text = hints_section + user_text
+                # Attach URL candidates to turn metadata for later source_url assignment
+                turn._hints = hints
+        except Exception:
+            pass  # pre-processor failure must never block extraction
 
         # [1] Chunk if too long
         if len(user_text) + len(asst_text) > MAX_TURN_CHARS:
@@ -103,6 +153,9 @@ class AbstractExtractionBackend(ABC):
         # [3a] Grounding check
         nodes = self.grounding_check(nodes, source_text)
 
+        # [3b] Speculative entity check (Fix 4)
+        nodes = self.speculative_check(nodes, source_text)
+
         # [4] Dual-signal confidence
         for node in nodes:
             node.confidence = self._compute_confidence(node, source_text)
@@ -114,6 +167,9 @@ class AbstractExtractionBackend(ABC):
 
         # Validate edges + resolve from_label/to_label → UUIDs
         edges = self._validate_edges(edges_raw, label_to_id)
+
+        # [4b] Fallback edge density enforcement (Fix 1 insurance net)
+        edges = self._ensure_minimum_edges(nodes, edges)
 
         return nodes, edges
 
@@ -177,6 +233,157 @@ class AbstractExtractionBackend(ABC):
                 )
             )
         return edges
+
+    # ------------------------------------------------------------------
+    # [3b] Speculative entity check (Fix 4)
+    # ------------------------------------------------------------------
+
+    # Regex patterns that signal a speculative / not-yet-verified claim
+    _SPECULATIVE_PHRASES: re.Pattern = re.compile(
+        r"\b(might|could|maybe|perhaps|possibly|future version|upcoming|not yet|"
+        r"not released|hypothetically|we could|planning to|would use|plan to use|"
+        r"when it releases|once it's out|when available)\b",
+        re.IGNORECASE,
+    )
+
+    # Model name patterns that are plausibly fabricated versions
+    # Matches things like "gpt-5.5", "gpt-6", "claude-5", "gemini-3.0"
+    _PHANTOM_MODEL_RE: re.Pattern = re.compile(
+        r"\b(gpt-[5-9][\.\d]*(?![\w-])|gpt-[1-9]\d[\.\d]*|"
+        r"claude-[5-9][\.\d]*(?![\w-])|"
+        r"gemini-[3-9][\.\d]*(?![\w-]))\b",
+        re.IGNORECASE,
+    )
+
+    @classmethod
+    def speculative_check(
+        cls, nodes: list[GraphNode], source_text: str
+    ) -> list[GraphNode]:
+        """Downgrade nodes that describe speculative or unverified entities.
+
+        Two triggers:
+        1. The source text around the node label contains speculative language
+           ("might use", "future version", etc.)
+        2. The node label contains a model name version that looks fabricated
+           (e.g. "gpt-5.5", "claude-5") — these are not released models.
+
+        In both cases: confidence is capped at 0.45 and metadata["speculative"] = True.
+        The confidence cap then triggers the UNCONFIRMED_CONFIDENCE_THRESHOLD check
+        in the calling code, setting status = UNCONFIRMED automatically.
+        """
+        source_lower = source_text.lower()
+
+        for node in nodes:
+            label_lower = node.label.lower()
+
+            # Check for phantom model name in label
+            if cls._PHANTOM_MODEL_RE.search(node.label):
+                node.confidence = min(node.confidence, 0.40)
+                node.metadata["speculative"] = True
+                node.metadata["speculative_reason"] = "model_name_unverified"
+                continue
+
+            # Find the window of text around where this label appears
+            idx = source_lower.find(label_lower[:20])  # first 20 chars as anchor
+            if idx == -1:
+                continue  # already handled by grounding_check
+            window = source_text[max(0, idx - 120): idx + 200]
+
+            if cls._SPECULATIVE_PHRASES.search(window):
+                node.confidence = min(node.confidence, 0.45)
+                node.metadata["speculative"] = True
+                node.metadata["speculative_reason"] = "speculative_language_in_context"
+
+        return nodes
+
+    # ------------------------------------------------------------------
+    # [4b] Fallback edge density enforcement (Fix 1 insurance net)
+    # ------------------------------------------------------------------
+
+    # Type-compatible edge rules: (from_type, to_type) → preferred relation.
+    # Used only as a last resort when a node has zero edges after LLM extraction.
+    _TYPE_EDGE_DEFAULTS: dict[tuple[str, str], str] = {
+        ("task",     "question"):  "leads-to",
+        ("task",     "error"):     "resolves",
+        ("task",     "decision"):  "implements",
+        ("task",     "file"):      "references",
+        ("task",     "skill"):     "uses",
+        ("error",    "file"):      "created-by",
+        ("error",    "task"):      "blocks",
+        ("decision", "concept"):   "documents",
+        ("decision", "skill"):     "uses",
+        ("question", "concept"):   "references",
+        ("question", "decision"):  "leads-to",
+        ("skill",    "concept"):   "relates-to",
+        ("concept",  "skill"):     "relates-to",
+        ("file",     "decision"):  "implements",
+        ("file",     "skill"):     "uses",
+    }
+
+    @classmethod
+    def _ensure_minimum_edges(
+        cls,
+        nodes: list[GraphNode],
+        edges: list[GraphEdge],
+    ) -> list[GraphEdge]:
+        """Add fallback edges for any node that has zero edges after LLM extraction.
+
+        This is a safety net — it should rarely fire if the updated prompts work.
+        Only generates a single "relates-to" edge to the nearest compatible node
+        rather than trying to infer precise semantics without context.
+
+        Works entirely offline: no LLM call, no embedding. Safe for all backends
+        including low-resource environments (no GPU / no API key required).
+        """
+        if len(nodes) < 2:
+            return edges  # can't add edges with only 1 node
+
+        # Build connectivity set
+        connected_ids: set[str] = set()
+        for e in edges:
+            connected_ids.add(e.from_id)
+            connected_ids.add(e.to_id)
+
+        node_ids = [n.id for n in nodes]
+        new_edges: list[GraphEdge] = []
+
+        for node in nodes:
+            if node.id in connected_ids:
+                continue  # already connected
+
+            # Find first compatible partner by type-priority rules
+            partner: GraphNode | None = None
+            best_relation = EdgeRelation.RELATES_TO
+            node_type_str = node.type if isinstance(node.type, str) else node.type.value
+
+            for other in nodes:
+                if other.id == node.id:
+                    continue
+                other_type_str = other.type if isinstance(other.type, str) else other.type.value
+                key = (node_type_str, other_type_str)
+                if key in cls._TYPE_EDGE_DEFAULTS:
+                    partner = other
+                    best_relation = EdgeRelation(cls._TYPE_EDGE_DEFAULTS[key])
+                    break
+
+            # Fall back to first other node if no typed rule matched
+            if partner is None:
+                for other in nodes:
+                    if other.id != node.id:
+                        partner = other
+                        break
+
+            if partner is not None:
+                new_edges.append(GraphEdge(
+                    from_id=node.id,
+                    to_id=partner.id,
+                    relation=best_relation,
+                    weight=0.5,  # lower weight signals this was auto-generated
+                ))
+                connected_ids.add(node.id)
+                connected_ids.add(partner.id)
+
+        return edges + new_edges
 
     # ------------------------------------------------------------------
     # [3a] Grounding check

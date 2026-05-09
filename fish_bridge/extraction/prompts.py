@@ -30,6 +30,18 @@ EXTRACTION_SYSTEM = (
     "3. Assign confidence 0.0-1.0 based on how explicitly the entity appears.\n"
     "4. Labels must be concise (8 words max). Summaries 2 sentences max.\n"
     "5. For edges, use the exact label strings you assigned to the nodes.\n"
+    "6. MANDATORY EDGE RULES:\n"
+    "   a. Every extracted node MUST have at least 2 edges. Isolated nodes are not useful.\n"
+    "   b. 'relates-to' is the LAST RESORT. Use specific relations first:\n"
+    "      task → blocks question | task → depends-on skill | task → implements decision\n"
+    "      error → created-by file | error → resolves ← task | decision → supersedes decision\n"
+    "      skill → used-by ← task | concept → documents ← decision | file → implements decision\n"
+    "   c. If a node has only 1 natural edge, add a second via the most specific applicable relation.\n"
+    "   d. 'relates-to' must be < 30% of all edges. If you exceed that, replace with specific types.\n"
+    "7. SPECULATIVE ENTITY RULE: If an entity is discussed hypothetically ('might use', \n"
+    "   'future version', 'not yet released', 'we could'), set confidence ≤ 0.5 and \n"
+    "   add metadata: {\"speculative\": true}. Model names not yet in production (e.g. \n"
+    "   version numbers that seem futuristic) must also be marked speculative.\n"
 )
 
 EXTRACTION_USER_TEMPLATE = (
@@ -44,6 +56,9 @@ EXTRACTION_USER_TEMPLATE = (
     '"subtype":"<optional>","source_url":"<optional>","metadata":{{}}}}\n\n'
     "Edge shape:\n"
     '{{"from_label":"<label>","to_label":"<label>","relation":"<relation>","weight":1.0}}\n\n'
+    "EDGE CHECKLIST before returning:\\n"
+    "- Count edges per node. Any node with < 2 edges? Add more using specific relations.\\n"
+    "- Count 'relates-to' edges. More than 30% of total? Replace with specific types.\\n"
     "Do not include any text outside the JSON object."
 )
 

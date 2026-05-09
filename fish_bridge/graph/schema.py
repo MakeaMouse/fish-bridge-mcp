@@ -40,6 +40,7 @@ class NodeStatus(str, Enum):
     IN_PROGRESS  = "in_progress"   # actively being worked on
     DONE         = "done"          # completed
     BLOCKED      = "blocked"       # blocked by something
+    CANCELLED    = "cancelled"     # explicitly abandoned (not just deferred)
     # quality
     UNCONFIRMED  = "unconfirmed"   # failed grounding check, needs review
     CONFLICTED   = "conflicted"    # status reversal detected, requires user resolution
@@ -53,6 +54,7 @@ class EdgeRelation(str, Enum):
     USES         = "uses"
     BLOCKS       = "blocks"
     SUPERSEDES   = "supersedes"
+    REPLACED_BY  = "replaced-by"   # old decision → newer decision that supersedes it
     CREATED_BY   = "created-by"
     REFERENCES   = "references"
     DOCUMENTS    = "documents"
@@ -71,6 +73,7 @@ class StatusHistoryEntry(BaseModel):
     status:    NodeStatus
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     note:      str | None = None
+    turn:      int | None = None  # turn number that caused this status change
 
 
 class GraphNode(BaseModel):
@@ -94,10 +97,10 @@ class GraphNode(BaseModel):
         """Update the updated_at timestamp."""
         self.updated_at = datetime.now(timezone.utc)
 
-    def push_status(self, new_status: NodeStatus, note: str | None = None) -> None:
+    def push_status(self, new_status: NodeStatus, note: str | None = None, turn: int | None = None) -> None:
         """Append status change to history and update current status."""
         self.status_history.append(
-            StatusHistoryEntry(status=self.status, note=note)
+            StatusHistoryEntry(status=self.status, note=note, turn=turn)
         )
         self.status = new_status
         self.touch()

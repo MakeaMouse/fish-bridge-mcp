@@ -24,7 +24,7 @@ class ClaudeBackend(AbstractExtractionBackend):
 
     def __init__(
         self,
-        model: str = "claude-sonnet-4-6",
+        model: str = "claude-opus-4-7",  # matches config.py MODEL_DEFAULTS["claude"]
         api_key_env: str = "ANTHROPIC_API_KEY",
         max_tokens: int = 2048,
     ) -> None:

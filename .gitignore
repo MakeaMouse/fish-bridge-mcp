@@ -14,3 +14,25 @@ venv/
 *.fish_bridge.json
 .env
 .envrc
+
+# Dev/scratch scripts (not for public release)
+_compile_check.py
+_graph_check.py
+download_model_offline.py
+download_models_external.md
+run_without_embeddings.md
+setup_offline_model.sh
+
+# Internal project report (not for public repo)
+CHATGRAPH-PROJECT-REPORT.md
+
+# fish_bridge write-lock files
+*.md.lock
+
+# Root-level integration/quality tests (require live APIs or local Ollama)
+test_e2e_gemini.py
+test_e2e_real.py
+test_full_session.py
+test_local_quality.py
+test_quality_assessment.py
+test_quality_real.py
