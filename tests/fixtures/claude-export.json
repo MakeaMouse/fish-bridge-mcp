@@ -1,0 +1,46 @@
+[
+  {
+    "uuid": "conv-001",
+    "name": "Python file I/O and testing",
+    "created_at": "2026-01-01T00:00:00.000Z",
+    "updated_at": "2026-01-01T01:00:00.000Z",
+    "chat_messages": [
+      {
+        "uuid": "msg-001",
+        "sender": "human",
+        "text": "How do I read a CSV file in Python efficiently?",
+        "created_at": "2026-01-01T00:01:00.000Z"
+      },
+      {
+        "uuid": "msg-002",
+        "sender": "assistant",
+        "text": "Use the csv module or pandas. For large files, use csv.DictReader with a generator pattern to avoid loading everything into memory at once. For data analysis, pandas.read_csv() is the most ergonomic choice.",
+        "created_at": "2026-01-01T00:01:30.000Z"
+      },
+      {
+        "uuid": "msg-003",
+        "sender": "human",
+        "text": "What is the difference between a list and a tuple in Python?",
+        "created_at": "2026-01-01T00:02:00.000Z"
+      },
+      {
+        "uuid": "msg-004",
+        "sender": "assistant",
+        "text": "Lists are mutable (can be changed after creation) while tuples are immutable. Tuples are faster and hashable, making them usable as dictionary keys. Use tuples for fixed data structures and lists when you need to append or modify elements.",
+        "created_at": "2026-01-01T00:02:30.000Z"
+      },
+      {
+        "uuid": "msg-005",
+        "sender": "human",
+        "text": "How should I structure a Python project with tests?",
+        "created_at": "2026-01-01T00:03:00.000Z"
+      },
+      {
+        "uuid": "msg-006",
+        "sender": "assistant",
+        "text": "Use src layout or flat layout with a tests/ directory at the project root. Install pytest and place test files as test_*.py. Use conftest.py for shared fixtures. Configure pytest via pyproject.toml under [tool.pytest.ini_options]. Run with: pytest tests/ -q",
+        "created_at": "2026-01-01T00:03:30.000Z"
+      }
+    ]
+  }
+]

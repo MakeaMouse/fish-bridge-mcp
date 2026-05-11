@@ -2,8 +2,9 @@
 
 fish_bridge stores its configuration at `~/.fish_bridge/config.yaml`.
 
-Run `fish-bridge config show` to view current values.
-Run `fish-bridge config set KEY VALUE` to change a value.
+Run `fish-bridge config --show` to view current values.
+Run `fish-bridge config --backend <name>` to switch the active backend.
+All other values are changed by editing `~/.fish_bridge/config.yaml` directly.
 
 ## All options
 
@@ -68,9 +69,9 @@ API keys can be set as environment variables and take precedence over the config
 ## Quick config changes
 
 ```bash
-fish-bridge config set backend gemini
-fish-bridge config set backend local
-fish-bridge config show
+fish-bridge config --backend gemini
+fish-bridge config --backend local
+fish-bridge config --show
 ```
 
 ## Using an OpenAI-compatible endpoint (LM Studio, Groq, Together, etc.)
@@ -80,7 +81,7 @@ extraction:
   backend: "openai"
   openai:
     model: "your-model-name"
-    api_key: "not-needed"
+    api_key_env: "OPENAI_API_KEY"   # set to a dummy env var; LM Studio doesn't validate keys
     base_url: "http://localhost:1234/v1"   # LM Studio default
 ```
 

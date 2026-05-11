@@ -1,0 +1,23 @@
+# Smoke test: pip install into a fresh venv
+# Build this from the repo root with:
+#   docker build -f tests/e2e/Dockerfile.pip-install -t fb-pip-install .
+#   docker run --rm fb-pip-install
+
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY dist/fish_bridge_mcp-*.whl /tmp/
+COPY tests/fixtures/ /app/tests/fixtures/
+
+# Install into an isolated venv — mirrors what a user does with pip install
+RUN python -m venv /opt/fb-venv && \
+    /opt/fb-venv/bin/pip install --no-cache-dir /tmp/fish_bridge_mcp-*.whl
+
+# --- Smoke tests ---
+RUN /opt/fb-venv/bin/fish-bridge --help > /dev/null
+RUN /opt/fb-venv/bin/fish-bridge config --show 2>&1 | grep -i backend
+RUN /opt/fb-venv/bin/fish-bridge init --project /tmp/smoke-pip --tool copilot && ls /tmp/smoke-pip/
+# (ingest omitted: requires a live backend — API keys or Ollama not available in container.)
+
+CMD ["echo", "All pip-install Docker smoke tests passed"]

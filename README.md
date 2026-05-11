@@ -17,25 +17,52 @@ Raw session (40k tokens) → [fish_bridge] → Compressed graph (350 tokens)
 
 ## Install
 
-```bash
-# Minimal install — use the local Ollama backend (free, offline)
-pip install fish-bridge-mcp
+> Don't have `uv`? Get it first: `curl -LsSf https://astral.sh/uv/install.sh | sh` (macOS/Linux) or see [uv docs](https://docs.astral.sh/uv/getting-started/installation/). It replaces pip + pipx + pyenv in one tool — no virtualenv management needed.
 
-# With Gemini backend (best cost/quality balance — ~$0.0002/turn)
-pip install "fish-bridge-mcp[gemini]"
+**Recommended — `uv tool install`** (installs both the `fish-bridge` CLI and `fish-bridge-mcp` MCP server on your PATH):
+
+```bash
+# Local Ollama backend — free, offline (requires Ollama running)
+uv tool install fish-bridge-mcp
+
+# Gemini backend (~$0.0002/turn, ~95% quality — recommended cloud option)
+uv tool install "fish-bridge-mcp[gemini]"
 export GEMINI_API_KEY=...
 
-# With Claude backend (highest quality — ~$0.002/turn)
-pip install "fish-bridge-mcp[claude]"
+# Claude backend (~$0.002/turn, ~97% quality)
+uv tool install "fish-bridge-mcp[claude]"
 export ANTHROPIC_API_KEY=sk-ant-...
 
-# With OpenAI backend
-pip install "fish-bridge-mcp[openai]"
+# OpenAI backend (~$0.0003/turn, ~93% quality)
+uv tool install "fish-bridge-mcp[openai]"
 export OPENAI_API_KEY=sk-...
 
 # Everything
-pip install "fish-bridge-mcp[all]"
+uv tool install "fish-bridge-mcp[all]"
 ```
+
+After install, two commands are available on your PATH:
+- **`fish-bridge`** — the main CLI (`ingest`, `compile`, `show`, `serve`, ...)
+- **`fish-bridge-mcp`** — the MCP server for VS Code agent mode
+
+**MCP config only (no permanent install needed):** use `uvx` directly in your `.vscode/mcp.json` — it downloads and runs the MCP server on demand:
+
+```json
+{ "command": "uvx", "args": ["fish-bridge-mcp"] }
+```
+
+See the [MCP server section](#mcp-server-optional--agent-mode-only) below for the full config.
+
+<details>
+<summary>Traditional pip install (for embedding fish-bridge as a library in your own Python project)</summary>
+
+```bash
+pip install fish-bridge-mcp
+pip install "fish-bridge-mcp[gemini]"   # with Gemini backend
+pip install "fish-bridge-mcp[claude]"   # with Claude backend
+pip install "fish-bridge-mcp[all]"      # everything
+```
+</details>
 
 ## 2-minute quickstart
 
@@ -67,7 +94,7 @@ That's it. `.github/copilot-instructions.md` now contains a ~350-token compresse
 
 Configure with:
 ```bash
-fish-bridge config set backend gemini
+fish-bridge config --backend gemini
 # or set GEMINI_API_KEY / ANTHROPIC_API_KEY / OPENAI_API_KEY as env vars
 ```
 
@@ -81,8 +108,8 @@ fish-bridge init --tool claude            # → writes to CLAUDE.md instead
 # --- Ingest chat turns ---
 fish-bridge ingest --source copilot       # auto-discover latest VS Code Copilot session
 fish-bridge ingest --source copilot --session <id>  # target specific session
-fish-bridge ingest --source jetbrains     # JetBrains Copilot Chat (guided paste — no transcript file)
-fish-bridge ingest --paste                # paste any chat text (universal fallback)
+fish-bridge ingest --source paste         # paste any chat text — opens $EDITOR (universal fallback)
+fish-bridge ingest --source file --file export.json  # from a saved export file
 fish-bridge watch --source copilot        # tail JSONL, auto-update on new turns
 
 # --- Merge external knowledge ---
@@ -100,7 +127,7 @@ fish-bridge compile                       # update instruction file (runs after 
 fish-bridge compile --mode digest         # full handover markdown
 fish-bridge compile --mode focus --query "Redis caching"
 fish-bridge show                          # pretty-print active nodes
-fish-bridge show --resolved               # include resolved items
+fish-bridge show --all                    # include resolved/deferred items
 fish-bridge serve                         # open Cytoscape.js graph viewer at localhost:8080
 fish-bridge digest                        # generate handover digest
 
@@ -117,22 +144,15 @@ fish-bridge import prior-session.chatgraph.json
 fish-bridge diff session-a.chatgraph.json session-b.chatgraph.json
 
 # --- Config ---
-fish-bridge config show
-fish-bridge config set backend gemini
+fish-bridge config --show
+fish-bridge config --backend gemini
 ```
 
 ## MCP server (optional — agent mode only)
 
 The MCP server adds real-time `record_turn` capture when using VS Code agent mode. It is **not required** — the file-based workflow above works in all modes without it.
 
-```bash
-# Zero-install (recommended)
-uvx fish-bridge-mcp
-
-# Or: pip install "fish-bridge-mcp[claude]" && fish-bridge serve-mcp
-```
-
-Add to `.vscode/mcp.json`:
+Add to `.vscode/mcp.json` (uses `uvx` — no prior install needed):
 ```json
 {
   "servers": {
@@ -145,6 +165,11 @@ Add to `.vscode/mcp.json`:
 }
 ```
 
+If you used `uv tool install fish-bridge-mcp`, you can also reference the installed binary directly:
+```json
+{ "command": "fish-bridge-mcp" }
+```
+
 See `examples/` for Claude Desktop, Cursor, and Windsurf configs.
 
 **MCP tools**: `record_turn`, `get_context`, `get_focus`, `mark_resolved`, `add_node`, `export_session`, `import_session`, `show_active`, `list_deferred`
@@ -154,7 +179,7 @@ See `examples/` for Claude Desktop, Cursor, and Windsurf configs.
 | Source | Command | What it ingests |
 |---|---|---|
 | Copilot | `ingest --source copilot` | VS Code Copilot JSONL transcript (auto-discovered) |
-| Paste | `ingest --paste` | Any chat text — universal fallback |
+| Paste | `ingest --source paste` | Any chat text — universal fallback |
 | Document | `merge --source document` | Markdown, JSON, YAML specs and ADRs |
 | Codebase | `merge --source codebase` | Git commits + README + HANDOVER |
 | Obsidian | `merge --source obsidian` | Vault notes with wikilinks and frontmatter |

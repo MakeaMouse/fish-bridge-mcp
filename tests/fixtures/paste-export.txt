@@ -1,0 +1,8 @@
+User: What is a REST API?
+Assistant: A REST API (Representational State Transfer) is an architectural style for building web services. It uses HTTP methods (GET, POST, PUT, DELETE) to perform operations on resources identified by URLs. REST APIs are stateless, meaning each request contains all necessary information.
+
+User: How do I authenticate with a REST API?
+Assistant: Common REST API authentication methods include: API keys (passed as headers or query params), OAuth 2.0 (token-based, supports scopes), JWT (JSON Web Tokens, self-contained signed tokens), and Basic Auth (username:password base64 encoded). For production, OAuth 2.0 or JWT are recommended over API keys or Basic Auth.
+
+User: What is JSON and how is it different from XML?
+Assistant: JSON (JavaScript Object Notation) is a lightweight data format using key-value pairs and arrays. XML uses nested tags and is more verbose. JSON is generally preferred for REST APIs because it is more compact, easier to parse in JavaScript, and maps directly to Python dicts and lists.

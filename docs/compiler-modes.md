@@ -16,7 +16,7 @@ Outputs an XML block summarising:
 Output size: **~300–600 tokens**
 
 ```bash
-fish-bridge compile --mode active_thread --output .github/copilot-instructions.md
+fish-bridge compile --mode active --output .github/copilot-instructions.md
 ```
 
 ## Mode B — Focus Subgraph (`focus`)
@@ -26,7 +26,7 @@ fish-bridge compile --mode active_thread --output .github/copilot-instructions.m
 Uses BFS from the highest-scoring node matching the query, limited to `--max-nodes` hops.
 
 ```bash
-fish-bridge compile --mode focus --query "DNC list caching" --max-nodes 15
+fish-bridge compile --mode focus --query "DNC list caching"
 ```
 
 Output size: **~200–800 tokens** depending on subgraph density.

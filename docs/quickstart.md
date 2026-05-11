@@ -9,23 +9,26 @@
 
 ```bash
 pip install fish-bridge-mcp
-# or with Claude backend extras
-pip install "fish-bridge-mcp[claude]"
+# or with a cloud backend extra (Gemini recommended)
+pip install "fish-bridge-mcp[gemini]"
+# See README for uv tool install (recommended) and other backends
 ```
 
 ## 1-minute setup
 
 ```bash
-# Create your session
-fish-bridge init --session my-project
+# Initialize for this project folder
+fish-bridge init
 
 # Configure your backend (set the API key as an environment variable)
 export GEMINI_API_KEY=your-key-here
-fish-bridge config set backend gemini
-# or: anthropic, openai, local (Ollama)
+fish-bridge config --backend gemini
+# or: --backend claude / --backend openai / --backend local
 
-# Ingest a conversation log (VS Code Copilot, Claude, etc.)
-fish-bridge ingest --file path/to/session.jsonl --session my-project
+# Ingest the latest VS Code Copilot session (auto-discovered)
+fish-bridge ingest --source copilot
+# Or ingest from a saved export file:
+fish-bridge ingest --source file --file path/to/export.json
 
 # Compile context to your instructions file
 fish-bridge compile --output .github/copilot-instructions.md
@@ -36,8 +39,8 @@ fish-bridge compile --output .github/copilot-instructions.md
 | Command | What it ingests |
 |---|---|
 | `ingest --source copilot` | VS Code Copilot JSONL — auto-discovered from workspaceStorage |
-| `ingest --source jetbrains` | JetBrains Copilot Chat — guided paste (no transcript file on disk) |
-| `ingest --paste` | Any chat tool — opens `$EDITOR`, paste and save |
+| `ingest --source paste` | Any chat tool — opens `$EDITOR`, paste and save |
+| `ingest --source file --file export.json` | From a saved export file (Claude JSON, plain text) |
 | `merge --source document --file HANDOVER.md` | Markdown / text docs |
 | `merge --source codebase --path .` | Git log + README |
 | `merge --source obsidian --vault ~/notes` | Obsidian vault |

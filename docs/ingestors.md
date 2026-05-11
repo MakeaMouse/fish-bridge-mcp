@@ -28,7 +28,7 @@ as well as the standard `User:` / `Assistant:` formats.
 
 ### Paste fallback (any tool)
 ```bash
-fish-bridge ingest --paste
+fish-bridge ingest --source paste
 ```
 Opens `$EDITOR` — paste any chat text, save and quit. Recognised formats:
 `You:` / `User:` / `Me:` (user) and `Assistant:` / `Claude:` / `Copilot:` /

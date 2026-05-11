@@ -36,3 +36,9 @@ test_full_session.py
 test_local_quality.py
 test_quality_assessment.py
 test_quality_real.py
+
+# macOS
+.DS_Store
+
+# Private local files
+docs/beta-tester-guide.md

@@ -1,0 +1,79 @@
+openapi: "3.0.3"
+info:
+  title: Fish Bridge Test API
+  version: "1.0.0"
+  description: Minimal OpenAPI fixture for scenario testing.
+paths:
+  /sessions:
+    get:
+      summary: List sessions
+      operationId: listSessions
+      tags: [session]
+      responses:
+        "200":
+          description: List of sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Session"
+    post:
+      summary: Create session
+      operationId: createSession
+      tags: [session]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewSession"
+      responses:
+        "201":
+          description: Session created
+  /sessions/{id}:
+    get:
+      summary: Get session by ID
+      operationId: getSession
+      tags: [session]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "404":
+          description: Not found
+components:
+  schemas:
+    Session:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+      required: [id, name, created_at]
+    NewSession:
+      type: object
+      properties:
+        name:
+          type: string
+      required: [name]
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+security:
+  - bearerAuth: []
