@@ -1,0 +1,16 @@
+startCommand:
+  type: stdio
+  commandFunction:
+    !!python/name:fish_bridge.server.main ''
+  configSchema:
+    type: object
+    properties:
+      backend:
+        type: string
+        description: "Extraction backend: local | gemini | claude | openai"
+        default: "local"
+        enum: ["local", "gemini", "claude", "openai"]
+      apiKey:
+        type: string
+        description: "API key for the selected cloud backend (not needed for local)"
+    required: []
