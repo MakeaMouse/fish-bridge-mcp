@@ -1,0 +1,18 @@
+version: 2
+updates:
+  # Keep GitHub Actions up to date
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # Keep Python dependencies up to date
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    ignore:
+      # mcp is pinned to 1.x intentionally — 2.x is a breaking protocol change
+      - dependency-name: "mcp"
+        update-types: ["version-update:semver-major"]

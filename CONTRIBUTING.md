@@ -19,7 +19,7 @@ pytest tests/test_extraction.py -v  # specific file
 pytest -k "test_jest"               # specific test pattern
 ```
 
-All 149 tests must pass before submitting a PR. The test suite runs without any API key — all extraction tests use mock backends.
+All tests must pass before submitting a PR (`pytest tests/ -q` — currently 170 tests). The test suite runs without any API key — all extraction tests use mock backends.
 
 ## Adding a new ingestor
 
