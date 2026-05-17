@@ -3,14 +3,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 
 from fish_bridge.compiler.active_thread import (
     ActiveThreadCompiler,
     _BLOCK_START,
     _BLOCK_END,
 )
-from fish_bridge.graph.schema import GraphEdge, GraphNode, NodeStatus, NodeType
+from fish_bridge.graph.schema import GraphNode, NodeStatus, NodeType
 
 
 def _make_node(label: str, ntype: NodeType, status: NodeStatus, confidence: float = 0.9) -> GraphNode:

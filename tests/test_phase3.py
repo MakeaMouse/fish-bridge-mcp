@@ -1,8 +1,6 @@
 """Phase 3/4 tests: graph algorithms, digest/focus compilers, MCP server tools."""
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest

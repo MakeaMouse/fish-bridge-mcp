@@ -217,15 +217,14 @@ class TestPDFIngestor:
 
     def test_ingest_real_pdf(self, tmp_path: Path):
         """Should return RawTurns from a minimal valid PDF."""
-        pypdf = pytest.importorskip("pypdf")
+        pytest.importorskip("pypdf")
         from pypdf import PdfWriter
         from fish_bridge.ingestors.pdf import PDFIngestor
 
         # Build a minimal in-memory PDF with two pages
         writer = PdfWriter()
-        from pypdf.generic import PageObject
         for text in ("Page one content about authentication.", "Page two covers caching strategies."):
-            page = writer.add_blank_page(width=612, height=792)
+            writer.add_blank_page(width=612, height=792)
             # pypdf blank pages have no extractable text — write via annotations workaround
             # Instead, use reportlab if available, else skip the real-text test
         # Since adding real text to pypdf programmatically requires extra deps,

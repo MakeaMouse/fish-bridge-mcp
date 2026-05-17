@@ -20,7 +20,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from fish_bridge.graph.schema import EdgeRelation, GraphEdge, GraphNode, NodeType, RawTurn
+from fish_bridge.graph.schema import RawTurn
 from fish_bridge.ingestors.base import AbstractIngestor
 
 _MAX_NOTE_CHARS = 4000
@@ -102,7 +102,7 @@ class ObsidianIngestor(AbstractIngestor):
         """
         vault = Path(vault_path).resolve()
         pairs: list[tuple[str, str]] = []
-        label_lower = {l.lower(): l for l in existing_labels}
+        label_lower = {lbl.lower(): lbl for lbl in existing_labels}
 
         for note_path in vault.rglob("*.md"):
             try:

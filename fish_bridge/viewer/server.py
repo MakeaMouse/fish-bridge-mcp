@@ -15,7 +15,6 @@ Usage (via CLI):
 from __future__ import annotations
 
 import json
-import os
 import re
 import sqlite3
 import sys
@@ -390,7 +389,7 @@ def run_viewer(
     edit_note = "  Node editing: [bold]enabled[/bold]" if db_path else "  Node editing: read-only"
     print(f"  Graph viewer:  {url}")
     print(edit_note)
-    print(f"  Press Ctrl+C to stop.")
+    print("  Press Ctrl+C to stop.")
 
     if open_browser:
         # Open after a short delay so the server is ready

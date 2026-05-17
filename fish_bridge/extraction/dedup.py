@@ -69,7 +69,6 @@ def _embed_ollama(label: str, base_url: str = "http://localhost:11434") -> list[
 def _embed_sentence_transformers(label: str) -> list[float] | None:
     """Fallback: sentence-transformers all-MiniLM-L6-v2 (optional dep)."""
     try:
-        from sentence_transformers import SentenceTransformer  # type: ignore[import]
         _model = _get_st_model()
         if _model is None:
             return None

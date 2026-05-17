@@ -20,9 +20,6 @@ from typing import Any
 from fish_bridge.graph.schema import (
     GraphEdge,
     GraphNode,
-    NodeType,
-    NodeStatus,
-    EdgeRelation,
 )
 from fish_bridge.ingestors.base import AbstractIngestor
 

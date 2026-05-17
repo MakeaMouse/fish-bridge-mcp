@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 import textwrap
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -302,7 +301,6 @@ class TestHybridBackend:
 
     def _stub_backend(self, label: str):
         from fish_bridge.extraction.base import AbstractExtractionBackend
-        from fish_bridge.graph.schema import GraphNode, NodeType
 
         class StubBackend(AbstractExtractionBackend):
             def __init__(self, name: str):

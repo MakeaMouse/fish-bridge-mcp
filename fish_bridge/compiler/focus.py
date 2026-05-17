@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 
 from fish_bridge.compiler.base import AbstractCompiler
 from fish_bridge.graph.algorithms import semantic_search_nodes, subgraph_neighborhood
-from fish_bridge.graph.schema import GraphEdge, GraphNode, NodeStatus, NodeType
+from fish_bridge.graph.schema import GraphEdge, GraphNode
 
 
 class FocusCompiler(AbstractCompiler):

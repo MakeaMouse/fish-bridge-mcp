@@ -14,9 +14,7 @@ to chat.tools.autoApproveList in VS Code settings.
 from __future__ import annotations
 
 import asyncio
-import os
 from pathlib import Path
-from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
@@ -29,7 +27,7 @@ from fish_bridge.config import (
 )
 from fish_bridge.compiler.active_thread import ActiveThreadCompiler
 from fish_bridge.compiler.focus import FocusCompiler
-from fish_bridge.graph.schema import GraphEdge, GraphNode, NodeStatus, NodeType, RawTurn
+from fish_bridge.graph.schema import GraphNode, NodeStatus, NodeType, RawTurn
 from fish_bridge.graph.session import SessionGraph
 
 

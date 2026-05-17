@@ -1,7 +1,6 @@
 """Phase 1 tests: semantic dedup, Ollama backend, session identity."""
 from __future__ import annotations
 
-import math
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -15,7 +14,7 @@ from fish_bridge.extraction.dedup import (
     find_best_match,
     semantic_merge,
 )
-from fish_bridge.graph.schema import EdgeRelation, GraphEdge, GraphNode, NodeType, NodeStatus
+from fish_bridge.graph.schema import EdgeRelation, GraphNode, NodeType
 
 
 # ---------------------------------------------------------------------------
@@ -332,7 +331,7 @@ class TestOllamaBackend:
 
     def test_build_backend_local(self, tmp_path: Path):
         """build_backend('local') should return OllamaBackend."""
-        from fish_bridge.config import FishBridgeConfig, ExtractionConfig, LocalConfig, build_backend
+        from fish_bridge.config import FishBridgeConfig, ExtractionConfig, build_backend
         from fish_bridge.extraction.local import OllamaBackend
 
         cfg = FishBridgeConfig(

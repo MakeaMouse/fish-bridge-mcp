@@ -11,7 +11,6 @@ import json
 import textwrap
 from pathlib import Path
 
-import pytest
 
 
 # ---------------------------------------------------------------------------
@@ -334,7 +333,7 @@ class TestPreprocessor:
         from fish_bridge.extraction.preprocessor import preprocess
         user = "Edit src/handlers/auth.py and tests/test_auth.py"
         hints = preprocess(user, "")
-        paths = [f.path for f in hints.file_refs]
+        _ = [f.path for f in hints.file_refs]
         # File ref extraction may or may not fire depending on pattern thresholds;
         # just verify the preprocessor runs without error and returns StructuredHints
         assert hasattr(hints, 'file_refs')
@@ -356,7 +355,7 @@ class TestPreprocessor:
         """Pre-processor exception must never surface to caller."""
         from fish_bridge.extraction.preprocessor import preprocess
         # Should not raise even with bizarre input
-        hints = preprocess("\x00\xff" * 100, "")
+        preprocess("\x00\xff" * 100, "")
         # Either succeeds or returns empty hints — both are fine
 
 

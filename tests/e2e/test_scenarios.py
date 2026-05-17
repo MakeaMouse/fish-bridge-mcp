@@ -20,7 +20,6 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -183,8 +182,8 @@ class TestOpenAPIIngestor:
         assert len(nodes) >= 3, f"Expected ≥3 nodes, got {len(nodes)}"
         labels = [n.label for n in nodes]
         assert any(
-            any(kw in l for kw in ("session", "GET", "POST", "list", "create"))
-            for l in labels
+            any(kw in lbl for kw in ("session", "GET", "POST", "list", "create"))
+            for lbl in labels
         )
 
     def test_openapi_security_scheme_as_decision_node(self) -> None:
@@ -288,7 +287,7 @@ class TestMCPServer:
             text=True,
             timeout=10,
         )
-        lines = [l.strip() for l in result.stdout.splitlines() if l.strip()]
+        lines = [ln.strip() for ln in result.stdout.splitlines() if ln.strip()]
         assert lines, f"No output from MCP server.\nstderr: {result.stderr}"
         response = json.loads(lines[0])
         assert "result" in response, f"Expected 'result' key, got: {response}"

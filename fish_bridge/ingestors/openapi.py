@@ -15,11 +15,9 @@ Optional: `pip install "fish-bridge-mcp[openapi]"` for validation via openapi-sp
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
-from typing import Iterator
 
-from fish_bridge.graph.schema import EdgeRelation, GraphEdge, GraphNode, NodeStatus, NodeType
+from fish_bridge.graph.schema import GraphEdge, GraphNode, NodeStatus, NodeType
 
 
 class OpenAPIIngestor:
@@ -68,8 +66,6 @@ class OpenAPIIngestor:
     def _parse_openapi3(self, data: dict, source: str) -> tuple[list[GraphNode], list[GraphEdge]]:
         nodes: list[GraphNode] = []
         edges: list[GraphEdge] = []
-
-        api_title = data.get("info", {}).get("title", "API")
 
         # Endpoints — paths → operations
         for path, path_item in (data.get("paths") or {}).items():

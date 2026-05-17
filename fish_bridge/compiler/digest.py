@@ -20,7 +20,6 @@ from fish_bridge.compiler.base import AbstractCompiler
 from fish_bridge.graph.algorithms import (
     community_detection,
     community_label,
-    dominant_type,
     group_nodes_by_community,
 )
 from fish_bridge.graph.schema import GraphEdge, GraphNode, NodeStatus, NodeType
@@ -152,7 +151,6 @@ class DigestCompiler(AbstractCompiler):
     ) -> None:
         """Render one community cluster as a markdown section."""
         label   = community_label(cluster_nodes)
-        d_type  = dominant_type(cluster_nodes)
         n_count = len(cluster_nodes)
         lines.append(f"### {label} ({n_count} nodes)")
 

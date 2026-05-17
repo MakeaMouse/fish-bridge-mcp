@@ -106,7 +106,7 @@ class OpenAIBackend(AbstractExtractionBackend):
         text = text.strip()
         if text.startswith("```"):
             lines = text.splitlines()
-            text = "\n".join(l for l in lines if not l.startswith("```")).strip()
+            text = "\n".join(line for line in lines if not line.startswith("```")).strip()
         try:
             return json.loads(text)
         except json.JSONDecodeError:

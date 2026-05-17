@@ -44,7 +44,7 @@ from fish_bridge.config import (
 )
 from fish_bridge.graph.schema import NodeStatus, NodeType, RawTurn
 from fish_bridge.graph.session import SessionGraph
-from fish_bridge.platforms import PLATFORM_ADAPTERS, get_adapter, list_tools, resolve_tool
+from fish_bridge.platforms import PLATFORM_ADAPTERS, list_tools, resolve_tool
 
 app  = typer.Typer(help="fish_bridge — session-scoped knowledge graph for AI chat compression.")
 console = Console()
@@ -191,7 +191,7 @@ def init(
         )
 
     # Create the instruction file with managed block if not yet present
-    from fish_bridge.compiler.active_thread import ActiveThreadCompiler, _BLOCK_START, _BLOCK_END
+    from fish_bridge.compiler.active_thread import ActiveThreadCompiler, _BLOCK_START
     compiler = ActiveThreadCompiler(session_id, cfg.output.token_budget)
 
     if not out_file.exists():
@@ -228,7 +228,7 @@ def init(
             console.print(f"[dim]  Also writes to: {project / t}[/dim]")
     console.print(f"[dim]  Backend: {cfg.extraction.backend}[/dim]")
     if adapter.mcp_supported:
-        console.print(f"[dim]  MCP server (optional): fish-bridge serve-mcp[/dim]")
+        console.print("[dim]  MCP server (optional): fish-bridge serve-mcp[/dim]")
     if adapter.setup_note:
         for line in adapter.setup_note.splitlines():
             console.print(f"[dim]  {line}[/dim]")
@@ -525,7 +525,6 @@ def show(
     config_file:  Optional[Path]= typer.Option(None,     "--config",     help="Config file path."),
 ) -> None:
     """Display the active session graph in the terminal."""
-    cfg        = load_config(config_file)
     session_id = _resolve_session_id(session_name, project)
     sg, _      = _open_session(session_id, config_file)
 
@@ -736,7 +735,6 @@ def export_cmd(
     config_file:  Optional[Path] = typer.Option(None,     "--config",   help="Config file path."),
 ) -> None:
     """Export the session graph to a portable .chatgraph.json file."""
-    cfg        = load_config(config_file)
     session_id = _resolve_session_id(session_name, project)
     sg, _      = _open_session(session_id, config_file)
 
@@ -1081,7 +1079,7 @@ def resolve(
     config_file:  Optional[Path] = typer.Option(None,     "--config",  help="Config file path."),
 ) -> None:
     """Mark a node (question/task/error) as resolved/done/fixed."""
-    from fish_bridge.graph.schema import NodeStatus, NodeType
+    from fish_bridge.graph.schema import NodeStatus
     session_id = _resolve_session_id(session_name, project)
     sg, _      = _open_session(session_id, config_file)
     nodes      = sg.all_nodes()
@@ -1091,12 +1089,14 @@ def resolve(
     matches = [n for n in nodes if label_lower in n.label.lower()]
     if not matches:
         console.print(f"[yellow]No nodes matching '{label}'[/yellow]")
-        sg.close(); return
+        sg.close()
+        return
     if len(matches) > 1:
-        console.print(f"[yellow]Multiple matches — pick one:[/yellow]")
+        console.print("[yellow]Multiple matches — pick one:[/yellow]")
         for n in matches:
             console.print(f"  [{n.id[:8]}] {n.label} ({n.type} / {n.status})")
-        sg.close(); return
+        sg.close()
+        return
 
     node = matches[0]
     # Choose terminal status based on node type
@@ -1135,12 +1135,14 @@ def defer(
     matches = [n for n in nodes if label_lower in n.label.lower()]
     if not matches:
         console.print(f"[yellow]No nodes matching '{label}'[/yellow]")
-        sg.close(); return
+        sg.close()
+        return
     if len(matches) > 1:
-        console.print(f"[yellow]Multiple matches — pick one:[/yellow]")
+        console.print("[yellow]Multiple matches — pick one:[/yellow]")
         for n in matches:
             console.print(f"  [{n.id[:8]}] {n.label} ({n.type} / {n.status})")
-        sg.close(); return
+        sg.close()
+        return
 
     node = matches[0]
     sg.set_status(node.id, NodeStatus.DEFERRED, note)
@@ -1202,7 +1204,6 @@ def conflict_show(
     config_file:  Optional[Path]= typer.Option(None,     "--config",  help="Config file path."),
 ) -> None:
     """List all conflicted nodes with their status history."""
-    from fish_bridge.graph.schema import NodeStatus
     session_id = _resolve_session_id(session_name, project)
     sg, _      = _open_session(session_id, config_file)
     nodes      = [n for n in sg.all_nodes() if
@@ -1244,7 +1245,8 @@ def conflict_resolve(
     node = next((n for n in all_nodes if n.id == node_id or n.id.startswith(node_id)), None)
     if node is None:
         console.print(f"[red]Node '{node_id}' not found.[/red]")
-        sg.close(); raise typer.Exit(1)
+        sg.close()
+        raise typer.Exit(1)
 
     history = node.status_history or []
     if keep == "old":
@@ -1256,7 +1258,8 @@ def conflict_resolve(
         )
         if pre_conflict is None:
             console.print("[red]Cannot determine previous status.[/red]")
-            sg.close(); raise typer.Exit(1)
+            sg.close()
+            raise typer.Exit(1)
         target_status = NodeStatus(pre_conflict if isinstance(pre_conflict, str) else pre_conflict.value)
     elif keep == "new":
         # Use the most recent non-conflicted history entry
@@ -1268,14 +1271,16 @@ def conflict_resolve(
         )
         if target_status_str is None:
             console.print("[red]Cannot determine new status from history.[/red]")
-            sg.close(); raise typer.Exit(1)
+            sg.close()
+            raise typer.Exit(1)
         target_status = NodeStatus(target_status_str)
     else:
         try:
             target_status = NodeStatus(keep)
         except ValueError:
             console.print(f"[red]Unknown status '{keep}'. Use 'old', 'new', or a valid status value.[/red]")
-            sg.close(); raise typer.Exit(1)
+            sg.close()
+            raise typer.Exit(1)
 
     sg.set_status(node.id, target_status, note or f"Conflict resolved: kept {keep}")
     sg.close()
@@ -1299,7 +1304,7 @@ def context(
     Useful for web AI tools (claude.ai, chatgpt.com, gemini.google.com) that
     cannot read local files — paste the output into the chat window.
     """
-    import subprocess, sys
+    import subprocess
 
     cfg        = load_config(config_file)
     session_id = _resolve_session_id(session_name, project)
@@ -1327,16 +1332,16 @@ def context(
         platform = sys.platform
         try:
             if platform == "darwin":
-                proc = subprocess.run(["pbcopy"], input=output_text.encode(), check=True)
+                subprocess.run(["pbcopy"], input=output_text.encode(), check=True)
             elif platform.startswith("linux"):
-                proc = subprocess.run(
+                subprocess.run(
                     ["xclip", "-selection", "clipboard"],
                     input=output_text.encode(),
                     check=True,
                 )
             else:
                 # Windows (includes WSL)
-                proc = subprocess.run(
+                subprocess.run(
                     ["clip.exe"],
                     input=output_text.encode(),
                     check=True,
@@ -1415,7 +1420,6 @@ def session_status(
     """Show summary statistics for the current (or named) session."""
     from collections import Counter
 
-    cfg        = load_config(config_file)
     session_id = _resolve_session_id(session_name, project)
     sg, _      = _open_session(session_id, config_file)
     nodes      = sg.all_nodes()
@@ -1537,7 +1541,7 @@ def verify(
 
     Verifies: session lock, output file freshness, nested link, backend reachability.
     """
-    import datetime, os, re
+    import datetime
 
     cfg        = load_config(config_file)
     session_id = _resolve_session_id(session_name, project)
@@ -1673,7 +1677,6 @@ def serve_mcp(
     project: Path = typer.Option(Path("."), "--project", help="Project root."),
 ) -> None:
     """Launch the fish-bridge MCP server (for AI agent real-time capture)."""
-    import os
     os.environ.setdefault("FISH_BRIDGE_PROJECT", str(project.resolve()))
     from fish_bridge.server import main as _mcp_main
     _mcp_main()
@@ -1777,8 +1780,6 @@ def setup(
     yes:     bool           = typer.Option(False, "--yes", "-y", help="Accept all defaults without prompting."),
 ) -> None:
     """Interactive first-run wizard: initialise, ingest, and compile in one step."""
-    import shlex
-    import subprocess
 
     console.print("\n[bold cyan]🐟 fish_bridge — First-Run Setup Wizard[/bold cyan]\n")
 
@@ -1836,9 +1837,6 @@ def setup(
 
     # ── Step 5: init ──────────────────────────────────────────────────────
     console.print("[bold]Step 2/3[/bold]  Initialising session…")
-    from fish_bridge.config import load_config as _load_cfg, get_active_session_id
-    cfg = _load_cfg()
-    session_id = get_active_session_id(project_path)
 
     try:
         init(project=project_path, tool=tool, output=None, session_name=None)

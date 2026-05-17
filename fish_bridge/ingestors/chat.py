@@ -11,7 +11,6 @@ import json
 import re
 import subprocess
 import tempfile
-from datetime import datetime, timezone
 from pathlib import Path
 
 from fish_bridge.graph.schema import RawTurn
@@ -228,7 +227,7 @@ class ChatTurnIngestor(AbstractIngestor):
             subprocess.run([editor, tmp_path], check=True)
             content = Path(tmp_path).read_text(encoding="utf-8")
             # Strip comment header
-            lines = [l for l in content.splitlines() if not l.startswith("#")]
+            lines = [ln for ln in content.splitlines() if not ln.startswith("#")]
             return "\n".join(lines).strip()
         finally:
             Path(tmp_path).unlink(missing_ok=True)

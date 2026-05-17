@@ -9,9 +9,8 @@ Provides:
 """
 from __future__ import annotations
 
-from typing import Any
 
-from fish_bridge.graph.schema import GraphEdge, GraphNode, NodeStatus, NodeType
+from fish_bridge.graph.schema import GraphEdge, GraphNode
 
 # networkx is a core dependency (in pyproject.toml)
 import networkx as nx

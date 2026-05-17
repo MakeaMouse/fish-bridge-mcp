@@ -15,7 +15,6 @@ import sys
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
 
 from fish_bridge.graph.schema import (
     EdgeRelation,
@@ -110,7 +109,6 @@ class AbstractExtractionBackend(ABC):
         chunks = self._split_paragraphs(asst_text, MAX_TURN_CHARS)
         all_nodes: list[GraphNode] = []
         all_edges: list[GraphEdge] = []
-        source_text = user_text + "\n" + asst_text
 
         for chunk in chunks:
             nodes, edges = self._extract_single(user_text, chunk, session_id)
@@ -344,7 +342,6 @@ class AbstractExtractionBackend(ABC):
             connected_ids.add(e.from_id)
             connected_ids.add(e.to_id)
 
-        node_ids = [n.id for n in nodes]
         new_edges: list[GraphEdge] = []
 
         for node in nodes:

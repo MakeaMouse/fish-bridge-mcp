@@ -17,7 +17,6 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Iterator
 
 from fish_bridge.graph.schema import EdgeRelation, GraphEdge, GraphNode, NodeStatus, NodeType
 
