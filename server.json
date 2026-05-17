@@ -1,15 +1,13 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.MakeaMouse/fish-bridge-mcp",
+  "name": "io.github.makemouse/fish-bridge-mcp",
   "title": "fish-bridge — Session Knowledge Graph",
-  "description": "Compresses AI chat sessions into a typed knowledge graph (~300–800 tokens). Works file-based in Copilot, Claude Code, Cursor, and Gemini CLI. Supports local/offline extraction via Ollama — no API key required.",
+  "description": "Compresses AI chat sessions into a typed knowledge graph. Local/offline via Ollama.",
   "repository": {
     "url": "https://github.com/MakeaMouse/fish-bridge-mcp",
     "source": "github"
   },
-  "version_detail": {
-    "version": "0.1.0"
-  },
+  "version": "0.1.1",
   "packages": [
     {
       "registryType": "pypi",
