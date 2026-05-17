@@ -83,7 +83,11 @@ jobs:
 
       - name: Add uv tool bin to PATH
         shell: bash
-        run: echo "$(uv tool dir --bin)" >> $GITHUB_PATH
+        run: |
+          BIN_DIR=$(uv tool dir --bin 2>/dev/null || echo "$HOME/.local/bin")
+          echo "uv tool bin dir: $BIN_DIR"
+          echo "$BIN_DIR" >> $GITHUB_PATH
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Smoke — fish-bridge --help
         run: fish-bridge --help
