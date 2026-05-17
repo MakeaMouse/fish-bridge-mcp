@@ -81,6 +81,10 @@ jobs:
       - name: uv tool install wheel
         run: uv tool install dist/*.whl
 
+      - name: Add uv tool bin to PATH
+        shell: bash
+        run: echo "$(uv tool dir --bin)" >> $GITHUB_PATH
+
       - name: Smoke — fish-bridge --help
         run: fish-bridge --help
 
