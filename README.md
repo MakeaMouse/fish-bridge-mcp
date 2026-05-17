@@ -1,5 +1,7 @@
 # fish_bridge
 
+<!-- mcp-name: io.github.MakeaMouse/fish-bridge-mcp -->
+
 [![CI](https://github.com/MakeaMouse/fish-bridge-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/MakeaMouse/fish-bridge-mcp/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/fish-bridge-mcp)](https://pypi.org/project/fish-bridge-mcp/)
 [![Python](https://img.shields.io/pypi/pyversions/fish-bridge-mcp)](https://pypi.org/project/fish-bridge-mcp/)
