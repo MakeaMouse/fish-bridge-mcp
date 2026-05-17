@@ -7,12 +7,12 @@
     "url": "https://github.com/MakeaMouse/fish-bridge-mcp",
     "source": "github"
   },
-  "version": "0.1.1",
+  "version": "0.1.3",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "fish-bridge-mcp",
-      "version": "0.1.0",
+      "version": "0.1.3",
       "transport": {
         "type": "stdio"
       },
