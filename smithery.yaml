@@ -1,16 +1,23 @@
 startCommand:
   type: stdio
-  commandFunction:
-    !!python/name:fish_bridge.server.main ''
   configSchema:
     type: object
     properties:
       backend:
         type: string
-        description: "Extraction backend: local | gemini | claude | openai"
+        description: "Extraction backend (local requires no API key)"
+        enum: ["local", "claude", "openai", "gemini"]
         default: "local"
-        enum: ["local", "gemini", "claude", "openai"]
       apiKey:
         type: string
-        description: "API key for the selected cloud backend (not needed for local)"
+        description: "API key for the selected cloud backend (omit for local/Ollama)"
     required: []
+  commandFunction: |-
+    (config) => {
+      const env = {};
+      if (config.apiKey) {
+        const keyMap = { claude: "ANTHROPIC_API_KEY", openai: "OPENAI_API_KEY", gemini: "GEMINI_API_KEY" };
+        env[keyMap[config.backend] || "ANTHROPIC_API_KEY"] = config.apiKey;
+      }
+      return { command: "uvx", args: ["fish-bridge-mcp"], env };
+    }
