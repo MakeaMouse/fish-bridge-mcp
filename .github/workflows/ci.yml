@@ -81,53 +81,41 @@ jobs:
       - name: uv tool install wheel
         run: uv tool install dist/*.whl
 
-      - name: Add uv tool bin to PATH
+      - name: Run smoke tests
         shell: bash
         run: |
-          BIN_DIR=$(uv tool dir --bin 2>/dev/null || echo "$HOME/.local/bin")
-          echo "uv tool bin dir: $BIN_DIR"
-          echo "$BIN_DIR" >> $GITHUB_PATH
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          # uv tool installs to $(uv tool dir --bin); add it AND the standard fallback to PATH
+          export PATH="$(uv tool dir --bin):$HOME/.local/bin:$PATH"
+          echo "Tool bin dir: $(uv tool dir --bin)"
+          echo "fish-bridge at: $(which fish-bridge || echo NOT_FOUND)"
 
-      - name: Smoke — fish-bridge --help
-        run: fish-bridge --help
+          fish-bridge --help
 
-      - name: Smoke — fish-bridge config --show
-        run: fish-bridge config --show
+          fish-bridge config --show
 
-      - name: Smoke — fish-bridge init (temp dir)
-        run: |
           TMP=$(mktemp -d)
           fish-bridge init --project "$TMP" --tool copilot
           ls "$TMP"
 
-      - name: Configure local backend (no API key required in CI)
-        run: fish-bridge config --backend local
+          # Set local backend — no API key required in CI
+          fish-bridge config --backend local
 
-      - name: Smoke — ingest --source file (Claude fixture)
-        run: |
-          TMP=$(mktemp -d)
+          TMP2=$(mktemp -d)
           fish-bridge ingest \
             --source file \
             --file tests/fixtures/claude-export.json \
-            --project "$TMP" \
+            --project "$TMP2" \
             --no-compile
 
-      - name: Smoke — ingest --source copilot (fixture layout)
-        run: |
-          TMP=$(mktemp -d)
-          SESS="$TMP/Library/Application Support/Code/User/workspaceStorage/abc123/GitHub.copilot-chat/debug-logs"
-          mkdir -p "$SESS"
-          CHAT="$TMP/Library/Application Support/Code/User/workspaceStorage/abc123/GitHub.copilot-chat"
+          TMP3=$(mktemp -d)
+          CHAT="$TMP3/Library/Application Support/Code/User/workspaceStorage/abc123/GitHub.copilot-chat"
           mkdir -p "$CHAT"
           cp tests/fixtures/sample-copilot-session.jsonl "$CHAT/sample-copilot-session.jsonl"
-          fish-bridge ingest --source copilot --workspace "$TMP" --project "$TMP" --no-compile 2>&1 || true
+          fish-bridge ingest --source copilot --workspace "$TMP3" --project "$TMP3" --no-compile 2>&1 || true
 
-      - name: Smoke — MCP initialize handshake
-        shell: bash
-        run: |
+          # MCP handshake
           printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}\n' \
-            | timeout 5 fish-bridge-mcp 2>/dev/null | head -1 > /tmp/mcp_resp.txt
+            | timeout 5 fish-bridge-mcp 2>/dev/null | head -1 > /tmp/mcp_resp.txt || true
           echo "MCP response: $(cat /tmp/mcp_resp.txt)"
           python3 - <<'EOF'
           import json, sys
