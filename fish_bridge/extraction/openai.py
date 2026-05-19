@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 from fish_bridge.extraction.base import AbstractExtractionBackend
@@ -11,6 +12,7 @@ from fish_bridge.extraction.prompts import (
     EXTRACTION_USER_TEMPLATE,
 )
 
+_logger = logging.getLogger(__name__)
 _MAX_RETRIES = 2
 
 
@@ -27,6 +29,7 @@ class OpenAIBackend(AbstractExtractionBackend):
         api_key_env: str = "OPENAI_API_KEY",
         base_url: str | None = None,
         max_tokens: int = 2048,
+        extra_body: dict | None = None,
     ) -> None:
         import openai as _openai
         import os
@@ -43,6 +46,7 @@ class OpenAIBackend(AbstractExtractionBackend):
         self._client = _openai.OpenAI(**kwargs)
         self._model = model
         self._max_tokens = max_tokens
+        self._extra_body = extra_body
 
     # ------------------------------------------------------------------
     # AbstractExtractionBackend
@@ -71,8 +75,15 @@ class OpenAIBackend(AbstractExtractionBackend):
                             "schema": EXTRACTION_OUTPUT_SCHEMA,
                         },
                     },
+                    extra_body=self._extra_body,
                 )
+                finish = response.choices[0].finish_reason
                 content = response.choices[0].message.content or ""
+                if finish == "length":
+                    raise ValueError(
+                        f"Response truncated (finish_reason=length): "
+                        f"increase max_tokens above {self._max_tokens}"
+                    )
                 return self._parse_response(content)
             except Exception as exc:
                 if attempt == _MAX_RETRIES:
@@ -89,8 +100,14 @@ class OpenAIBackend(AbstractExtractionBackend):
                             {"role": "user",   "content": prompt},
                         ],
                         response_format={"type": "json_object"},
+                        extra_body=self._extra_body,
                     )
+                    finish = response.choices[0].finish_reason
                     content = response.choices[0].message.content or ""
+                    if finish == "length":
+                        raise ValueError(
+                            "json_object fallback also truncated (finish_reason=length)"
+                        )
                     return self._parse_response(content)
                 except Exception:
                     continue
@@ -109,5 +126,6 @@ class OpenAIBackend(AbstractExtractionBackend):
             text = "\n".join(line for line in lines if not line.startswith("```")).strip()
         try:
             return json.loads(text)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as exc:
+            _logger.warning("Extraction JSON parse failed, dropping turn: %s", exc)
             return {"nodes": [], "edges": []}

@@ -5,9 +5,14 @@ Uses `format=` parameter to enforce JSON Schema at the sampler level — no post
 parsing or retry needed for schema compliance.
 
 Recommended models (ordered by quality/speed tradeoff):
-  qwen2.5:7b    — 85% quality, ~200ms/turn, best default
-  gemma3:12b    — 91% quality, ~500ms/turn, if hardware allows
-  mistral:7b    — 82% quality, fast on CPU
+  qwen2.5:7b    — ~6 nodes/turn,  1.3 edges/node, fastest  (8 GB RAM)  [config default]
+  qwen2.5:14b   — ~10 nodes/turn, 1.8 edges/node, good balance (16 GB RAM)
+  gemma3:12b    — ~11 nodes/turn, 2.0 edges/node, ~500ms/turn (16 GB RAM)  [recommended]
+  qwen2.5:32b   — best local quality                         (32 GB RAM)
+
+NOTE: qwen2.5:7b averages ~1.3 edges/node, which is below the 2-edge rule in the
+extraction prompt. Upgrading to qwen2.5:14b or gemma3:12b significantly improves
+graph completeness without requiring a cloud backend.
 
 Embedding:
   nomic-embed-text via /api/embed — used by semantic dedup in EmbeddingProvider.

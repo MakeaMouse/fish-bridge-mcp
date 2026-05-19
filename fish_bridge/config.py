@@ -88,17 +88,30 @@ class OpenAIConfig:
 
 @dataclass
 class GeminiConfig:
-    model:       str = field(default_factory=lambda: MODEL_DEFAULTS["gemini"])
-    api_key_env: str = "GEMINI_API_KEY"
+    model:            str = field(default_factory=lambda: MODEL_DEFAULTS["gemini"])
+    api_key_env:      str = "GEMINI_API_KEY"
     # Gemini exposes an OpenAI-compatible endpoint; no separate SDK needed.
     # Requires the models/ prefix: e.g. models/gemini-2.5-flash.
-    base_url:    str = "https://generativelanguage.googleapis.com/v1beta/openai/"
+    base_url:         str = "https://generativelanguage.googleapis.com/v1beta/openai/"
+    # max_tokens must be high enough to hold the full JSON response after thinking
+    # tokens are consumed. 16384 gives ample headroom even for large turns.
+    max_tokens:       int = 16384
+    # reasoning_effort controls Gemini 2.5 Flash's thinking phase via the
+    # OpenAI-compatible endpoint. Accepted values:
+    #   "none"  — disable thinking (default); saves tokens, no quality loss
+    #            for deterministic JSON schema extraction tasks.
+    #   "low"   — minimal thinking
+    #   "medium" / "high" — progressively more reasoning
+    #   ""      — omit the parameter; let Gemini decide (auto up to 8,192 tokens)
+    reasoning_effort: str = "none"
 
 
 @dataclass
 class LocalConfig:
     provider:    str = "ollama"
     base_url:    str = "http://localhost:11434"
+    # qwen2.5:7b is the fastest default; upgrade to qwen2.5:14b or gemma3:12b
+    # for significantly better extraction quality (more edges/node, fewer missing nodes).
     model:       str = field(default_factory=lambda: MODEL_DEFAULTS["local"])
     embed_model: str = "nomic-embed-text"
 
@@ -139,7 +152,7 @@ class OutputConfig:
     delivery_mode:       str = "local"
     local_context_file:  str = ".fish_bridge/context.md"
     shared_context_file: str = ".github/copilot-instructions.md"
-    token_budget:        int = 800
+    token_budget:        int = 1200
 
     # Additional output targets. When non-empty, compile writes to each path
     # in addition to the primary default_file.
@@ -227,9 +240,10 @@ def load_config(path: Path | None = None) -> FishBridgeConfig:
                 base_url=    openai_raw.get("base_url"),
             ),
             gemini=GeminiConfig(
-                model=       gemini_raw.get("model",       MODEL_DEFAULTS["gemini"]),
-                api_key_env= gemini_raw.get("api_key_env", "GEMINI_API_KEY"),
-                base_url=    gemini_raw.get("base_url",    "https://generativelanguage.googleapis.com/v1beta/openai/"),
+                model=            gemini_raw.get("model",            MODEL_DEFAULTS["gemini"]),
+                api_key_env=      gemini_raw.get("api_key_env",      "GEMINI_API_KEY"),
+                base_url=         gemini_raw.get("base_url",         "https://generativelanguage.googleapis.com/v1beta/openai/"),
+                reasoning_effort= gemini_raw.get("reasoning_effort", "none"),
             ),
             local=LocalConfig(
                 provider=    local_raw.get("provider",    "ollama"),
@@ -248,7 +262,7 @@ def load_config(path: Path | None = None) -> FishBridgeConfig:
             delivery_mode=       output_raw.get("delivery_mode",       "local"),
             local_context_file=  output_raw.get("local_context_file",  ".fish_bridge/context.md"),
             shared_context_file= output_raw.get("shared_context_file", ".github/copilot-instructions.md"),
-            token_budget=        output_raw.get("token_budget",        800),
+            token_budget=        output_raw.get("token_budget",        1200),
             extra_targets=       list(output_raw.get("extra_targets",  [])),
         ),
         dedup=DedupConfig(
@@ -407,11 +421,20 @@ def build_backend(config: FishBridgeConfig):
     elif backend_name == "gemini":
         warn_cloud_backend_once("gemini")
         from fish_bridge.extraction.openai import OpenAIBackend
-        # Gemini exposes an OpenAI-compatible endpoint — reuse OpenAIBackend
+        # Gemini exposes an OpenAI-compatible endpoint — reuse OpenAIBackend.
+        # reasoning_effort="none" disables the thinking phase via the OpenAI-
+        # compatible API, saving 3k-8k tokens per extraction call with no quality
+        # loss for structured JSON tasks. Empty string = omit, let API decide.
+        _re = config.extraction.gemini.reasoning_effort
+        _extra_body: dict | None = (
+            {"reasoning_effort": _re} if _re else None
+        )
         return OpenAIBackend(
-            model=       config.extraction.gemini.model,
-            api_key_env= config.extraction.gemini.api_key_env,
-            base_url=    config.extraction.gemini.base_url,
+            model=        config.extraction.gemini.model,
+            api_key_env=  config.extraction.gemini.api_key_env,
+            base_url=     config.extraction.gemini.base_url,
+            max_tokens=   config.extraction.gemini.max_tokens,
+            extra_body=   _extra_body,
         )
     elif backend_name == "local":
         from fish_bridge.extraction.local import OllamaBackend

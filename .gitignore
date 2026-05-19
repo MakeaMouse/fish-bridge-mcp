@@ -36,6 +36,7 @@ test_full_session.py
 test_local_quality.py
 test_quality_assessment.py
 test_quality_real.py
+test_compare_backends.py
 
 # macOS
 .DS_Store
