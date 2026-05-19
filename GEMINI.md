@@ -3,11 +3,10 @@
 <!-- Add your project-specific AI instructions above this line. -->
 
 <!-- FISH_BRIDGE_START -->
-<!-- This file is managed by fish_bridge. Run `fish-bridge compile` to update. -->
-<!-- https://github.com/MakeaMouse/fish-bridge-mcp -->
+## Session Context (fish_bridge managed — do not edit)
 
-## Session Context
-
-No session ingested yet. Run `fish-bridge ingest --source copilot` to get started.
-
+<fish_bridge session="registry-launch-session" status="initializing">
+  <!-- No turns ingested yet. Run: fish-bridge ingest --source copilot -->
+  <!-- After ingesting, this block will contain your session context. -->
+</fish_bridge>
 <!-- FISH_BRIDGE_END -->

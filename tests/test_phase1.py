@@ -184,8 +184,8 @@ class TestSemanticMerge:
         existing.embedding = [1.0, 0.0]
 
         incoming = GraphNode(type=NodeType.CONCEPT, label="token budget limit")
-        # cosine between [1,0] and [0.75, 0.66] ≈ 0.75 → in the relate range
-        incoming.embedding = [0.75, 0.661]
+        # cosine between [1,0] and [0.80, 0.60] = 0.80 → in the relate range
+        incoming.embedding = [0.80, 0.60]
         score = cosine_similarity(existing.embedding, incoming.embedding)
         assert RELATE_THRESHOLD <= score < MERGE_THRESHOLD
 

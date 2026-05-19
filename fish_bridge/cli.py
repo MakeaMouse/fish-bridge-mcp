@@ -417,6 +417,17 @@ def ingest(
     if remediated:
         console.print(f"[dim]  ↳ {remediated} low-confidence node(s) marked unconfirmed[/dim]")
 
+    # Post-ingest graph quality passes (offline, no LLM)
+    new_edges = sg.infer_cross_session_edges()
+    if new_edges:
+        console.print(f"[dim]  ↳ {new_edges} cross-session edge(s) inferred[/dim]")
+    upgraded = sg.upgrade_relates_to_edges()
+    if upgraded:
+        console.print(f"[dim]  ↳ {upgraded} relates-to edge(s) upgraded to typed relations[/dim]")
+    healed = sg.heal_orphan_edges()
+    if healed:
+        console.print(f"[dim]  ↳ {healed} orphan node(s) connected[/dim]")
+
     if not no_compile:
         _do_compile(sg, cfg, project, output, session_id)
 
@@ -934,6 +945,16 @@ def merge_cmd(
     new_edges = sg.infer_cross_session_edges()
     if new_edges:
         console.print(f"[dim]  ↳ {new_edges} cross-session edge(s) inferred[/dim]")
+
+    # Upgrade cross-type relates-to to specific typed relations.
+    upgraded = sg.upgrade_relates_to_edges()
+    if upgraded:
+        console.print(f"[dim]  ↳ {upgraded} relates-to edge(s) upgraded to typed relations[/dim]")
+
+    # Heal orphan nodes using embedding similarity (or token overlap).
+    healed = sg.heal_orphan_edges()
+    if healed:
+        console.print(f"[dim]  ↳ {healed} orphan node(s) connected[/dim]")
 
     # Fix 5: Mark any low-confidence nodes that slipped through as unconfirmed
     remediated = sg.remediate_low_confidence()

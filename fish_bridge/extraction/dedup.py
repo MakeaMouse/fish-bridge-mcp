@@ -11,8 +11,8 @@ Embedding sources (tried in order):
 
 Thresholds:
   >0.88 → merge (incoming node updates existing node in place)
-  0.70–0.88 → keep both, add relates-to edge
-  <0.70 → independent node (new addition)
+  0.78–0.88 → keep both, add relates-to edge
+  <0.78 → independent node (new addition)
 """
 from __future__ import annotations
 
@@ -29,7 +29,17 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 MERGE_THRESHOLD  = 0.88   # above this → merge into single node
-RELATE_THRESHOLD = 0.70   # above this (and below MERGE) → add relates-to edge
+RELATE_THRESHOLD = 0.78   # above this (and below MERGE) → add relates-to edge
+CROSS_TYPE_RELATE_THRESHOLD = 0.82  # stricter threshold for cross-type relates-to edges
+
+# Type pairs where cross-type similarity is meaningful enough to warrant a relates-to edge.
+# Only these pairs are checked to avoid noisy false-positive connections.
+_CROSS_TYPE_PAIRS: frozenset[frozenset[str]] = frozenset({
+    frozenset({"task", "question"}),
+    frozenset({"task", "decision"}),
+    frozenset({"concept", "skill"}),
+    frozenset({"error", "task"}),
+})
 
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:
@@ -183,21 +193,64 @@ def find_best_match(
     return best_node, best_score
 
 
+def find_cross_type_match(
+    node: GraphNode,
+    candidates: list[GraphNode],
+    provider: EmbeddingProvider,
+    threshold: float = CROSS_TYPE_RELATE_THRESHOLD,
+) -> tuple[GraphNode | None, float]:
+    """Find the highest-similarity node across compatible cross-type pairs.
+
+    Only checks type pairs listed in _CROSS_TYPE_PAIRS.
+    Returns (match, score) or (None, 0.0) if nothing meets threshold.
+    """
+    node_vec = provider.embed(node.label)
+    if node_vec is None:
+        return None, 0.0
+
+    node_type = node.type if isinstance(node.type, str) else node.type.value
+    best_node: GraphNode | None = None
+    best_score = 0.0
+
+    for candidate in candidates:
+        cand_type = candidate.type if isinstance(candidate.type, str) else candidate.type.value
+        if cand_type == node_type:
+            continue  # same-type handled by find_best_match
+        if frozenset({node_type, cand_type}) not in _CROSS_TYPE_PAIRS:
+            continue
+        if candidate.embedding is None:
+            candidate.embedding = provider.embed(candidate.label)
+        if candidate.embedding is None:
+            continue
+        score = cosine_similarity(node_vec, candidate.embedding)
+        if score > best_score:
+            best_score = score
+            best_node = candidate
+
+    if best_score >= threshold:
+        return best_node, best_score
+    return None, 0.0
+
+
 def semantic_merge(
     incoming_nodes: list[GraphNode],
     existing_nodes: list[GraphNode],
     provider: EmbeddingProvider,
     merge_threshold: float = MERGE_THRESHOLD,
     relate_threshold: float = RELATE_THRESHOLD,
+    cross_type_budget: int = -1,
 ) -> tuple[list[GraphNode], list[GraphEdge], dict[str, str]]:
     """Apply semantic dedup across *incoming_nodes* vs *existing_nodes*.
 
     Args:
-        incoming_nodes:  Freshly extracted nodes to check for duplicates.
-        existing_nodes:  Already-persisted nodes in the graph.
-        provider:        Embedding provider to use for similarity.
-        merge_threshold: Cosine similarity above which nodes are merged (default 0.88).
+        incoming_nodes:   Freshly extracted nodes to check for duplicates.
+        existing_nodes:   Already-persisted nodes in the graph.
+        provider:         Embedding provider to use for similarity.
+        merge_threshold:  Cosine similarity above which nodes are merged (default 0.88).
         relate_threshold: Cosine similarity above which a relates-to edge is added (default 0.70).
+        cross_type_budget: Max number of cross-type relates-to edges to add this batch.
+                           -1 means unlimited. Callers should set this to keep the
+                           session-wide relates-to ratio below 28%.
 
     Returns:
         to_add    — new nodes that should be inserted (not merged into existing)
@@ -213,6 +266,7 @@ def semantic_merge(
 
     # Accumulate newly added nodes so duplicates within the same batch are also caught
     accumulated = list(existing_nodes)
+    cross_type_used: int = 0  # tracks cross-type relates-to edges emitted this call
 
     for node in incoming_nodes:
         # Embed incoming node
@@ -245,9 +299,22 @@ def semantic_merge(
             )
 
         else:
-            # No match — add as independent node
+            # No same-type match — check cross-type compatible pairs before treating as independent
+            cross_match, cross_score = find_cross_type_match(node, accumulated, provider)
             id_map[node.id] = node.id
             to_add.append(node)
             accumulated.append(node)
+            budget_allows = (cross_type_budget < 0 or cross_type_used < cross_type_budget)
+            if cross_match is not None and budget_allows:
+                new_edges.append(
+                    GraphEdge(
+                        from_id=   node.id,
+                        to_id=     cross_match.id,
+                        relation=  EdgeRelation.RELATES_TO,
+                        weight=    cross_score,
+                        created_at=node.created_at,
+                    )
+                )
+                cross_type_used += 1
 
     return to_add, new_edges, id_map

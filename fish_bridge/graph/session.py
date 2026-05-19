@@ -35,6 +35,31 @@ _OPEN_STATUSES: frozenset[str] = frozenset({
     "active", "proposed", "pending", "in_progress", "blocked",
 })
 
+# Fallback edge relations used by the post-merge orphan patch.
+# Mirrors AbstractExtractionBackend._TYPE_EDGE_DEFAULTS without the circular import.
+_ORPHAN_FALLBACK_EDGES: dict[tuple[str, str], str] = {
+    ("task",     "question"):  "leads-to",
+    ("task",     "error"):     "resolves",
+    ("task",     "decision"):  "implements",
+    ("task",     "file"):      "references",
+    ("task",     "skill"):     "uses",
+    ("task",     "concept"):   "references",
+    ("task",     "task"):      "depends-on",
+    ("error",    "file"):      "created-by",
+    ("error",    "task"):      "blocks",
+    ("decision", "concept"):   "documents",
+    ("decision", "skill"):     "uses",
+    ("decision", "task"):      "implements",
+    ("question", "concept"):   "references",
+    ("question", "decision"):  "leads-to",
+    ("file",     "decision"):  "implements",
+    ("file",     "skill"):     "uses",
+    ("concept",  "task"):      "references",
+    ("concept",  "question"):  "references",
+    ("concept",  "skill"):     "uses",
+    ("skill",    "concept"):   "uses",
+}
+
 
 def _is_conflict(current_status: str, incoming_status: str) -> bool:
     """Return True if the incoming status is a reversal of the current status.
@@ -264,6 +289,12 @@ class SessionGraph:
             merge_kwargs["merge_threshold"] = merge_t
         if relate_t is not None:
             merge_kwargs["relate_threshold"] = relate_t
+        # Compute cross-type relates-to budget to keep session ratio ≤ 28%
+        existing_edges = self.all_edges()
+        total_e = len(existing_edges)
+        existing_relates = sum(1 for e in existing_edges if e.relation == EdgeRelation.RELATES_TO)
+        cross_type_budget = max(0, int(total_e * 0.28) - existing_relates)
+        merge_kwargs["cross_type_budget"] = cross_type_budget
         to_add, sem_edges, sem_id_map = semantic_merge(
             remainder, existing_nodes, self._embed_provider, **merge_kwargs
         )
@@ -301,6 +332,38 @@ class SessionGraph:
             edge.to_id   = resolved_to
             self.add_edge(edge)
             stored_edges.append(edge)
+
+        # Phase 4: connect any nodes that lost all edges during dedup/phantom
+        # filtering. Add a single typed fallback edge per orphaned node.
+        post_edge_node_ids: set[str] = set()
+        for e in stored_edges:
+            post_edge_node_ids.add(e.from_id)
+            post_edge_node_ids.add(e.to_id)
+        # Include pre-existing edges so we don't double-connect already-linked nodes
+        for e in existing_edges:
+            post_edge_node_ids.add(e.from_id)
+            post_edge_node_ids.add(e.to_id)
+        newly_orphaned = [n for n in stored_nodes if n.id not in post_edge_node_ids]
+        if newly_orphaned:
+            all_post_nodes = self.all_nodes()
+            for orphan in newly_orphaned:
+                orphan_type = orphan.type if isinstance(orphan.type, str) else orphan.type.value
+                for partner in all_post_nodes:
+                    if partner.id == orphan.id:
+                        continue
+                    p_type = partner.type if isinstance(partner.type, str) else partner.type.value
+                    rel = _ORPHAN_FALLBACK_EDGES.get((orphan_type, p_type))
+                    if rel is None:
+                        continue
+                    patch_edge = GraphEdge(
+                        from_id=orphan.id,
+                        to_id=partner.id,
+                        relation=EdgeRelation(rel),
+                        weight=0.5,
+                    )
+                    self.add_edge(patch_edge)
+                    stored_edges.append(patch_edge)
+                    break  # one fallback edge per orphan is sufficient
 
         return stored_nodes, stored_edges
 
@@ -366,8 +429,8 @@ class SessionGraph:
             ("decision", "skill"):     EdgeRelation.USES,
             ("question", "concept"):   EdgeRelation.REFERENCES,
             ("question", "decision"):  EdgeRelation.LEADS_TO,
-            ("skill",    "concept"):   EdgeRelation.RELATES_TO,
-            ("concept",  "skill"):     EdgeRelation.RELATES_TO,
+            ("skill",    "concept"):   EdgeRelation.USES,
+            ("concept",  "skill"):     EdgeRelation.USES,
             ("file",     "decision"):  EdgeRelation.IMPLEMENTS,
             ("file",     "skill"):     EdgeRelation.USES,
         }
@@ -409,6 +472,195 @@ class SessionGraph:
                 self.add_edge(edge)
                 existing_pairs.add((a.id, b.id))
                 existing_pairs.add((b.id, a.id))
+                new_count += 1
+
+        return new_count
+
+    # ------------------------------------------------------------------
+    # Post-ingest relates-to upgrade pass
+    # ------------------------------------------------------------------
+
+    # Upgrade rules: (from_type, to_type) → specific relation.
+    # Only cross-type pairs are listed; same-type relates-to is left as-is.
+    _RT_UPGRADE_RULES: dict[tuple[str, str], str] = {
+        ("task",     "decision"):  "implements",
+        ("decision", "task"):      "implements",
+        ("task",     "error"):     "resolves",
+        ("error",    "task"):      "blocks",
+        ("task",     "skill"):     "uses",
+        ("skill",    "task"):      "uses",
+        ("task",     "file"):      "references",
+        ("file",     "task"):      "references",
+        ("task",     "question"):  "leads-to",
+        ("question", "task"):      "leads-to",
+        ("task",     "concept"):   "references",
+        ("concept",  "task"):      "references",
+        ("decision", "concept"):   "documents",
+        ("concept",  "decision"):  "documents",
+        ("decision", "file"):      "references",
+        ("file",     "decision"):  "implements",
+        ("decision", "error"):     "resolves",
+        ("error",    "decision"):  "blocks",
+        ("decision", "skill"):     "uses",
+        ("skill",    "decision"):  "uses",
+        ("file",     "skill"):     "uses",
+        ("skill",    "file"):      "uses",
+        ("file",     "question"):  "references",
+        ("question", "file"):      "references",
+        ("error",    "file"):      "created-by",
+        ("file",     "error"):     "created-by",
+        ("question", "concept"):   "references",
+        ("concept",  "question"):  "references",
+        ("question", "decision"):  "leads-to",
+        ("decision", "question"):  "leads-to",
+        ("skill",    "concept"):   "uses",
+        ("concept",  "skill"):     "uses",
+    }
+
+    def upgrade_relates_to_edges(self) -> int:
+        """Upgrade cross-type 'relates-to' edges to specific typed relations.
+
+        Applies deterministic type-pair rules from _RT_UPGRADE_RULES.
+        Same-type relates-to edges (task↔task, concept↔concept, etc.) are
+        intentionally left untouched — they are semantically appropriate.
+
+        Safe to call repeatedly (idempotent: already-upgraded edges are skipped).
+        Returns the number of edges upgraded.
+        """
+        nmap = {
+            n.id: (n.type if isinstance(n.type, str) else n.type.value)
+            for n in self.all_nodes()
+        }
+        upgraded = 0
+        for edge in self.all_edges():
+            if edge.relation != EdgeRelation.RELATES_TO:
+                continue
+            ft = nmap.get(edge.from_id, "?")
+            tt = nmap.get(edge.to_id,   "?")
+            if ft == tt:
+                continue  # same-type: leave as relates-to
+            new_rel = self._RT_UPGRADE_RULES.get((ft, tt))
+            if new_rel is None:
+                continue
+            edge.relation = EdgeRelation(new_rel)
+            self._store.upsert_edge(self.session_id, edge)
+            upgraded += 1
+        return upgraded
+
+    # ------------------------------------------------------------------
+    # Embedding-based orphan edge healing
+    # ------------------------------------------------------------------
+
+    def heal_orphan_edges(self, similarity_threshold: float = 0.70) -> int:
+        """Connect orphan nodes (0 edges) to the nearest semantically related node.
+
+        Uses embedding cosine similarity when embeddings are available; falls back
+        to token-overlap (≥1 significant shared word) otherwise.
+
+        Returns the number of new edges created.
+        """
+        import math
+
+        nodes = self.all_nodes()
+        if len(nodes) < 2:
+            return 0
+
+        all_edges = self.all_edges()
+        connected_ids: set[str] = set()
+        for e in all_edges:
+            connected_ids.add(e.from_id)
+            connected_ids.add(e.to_id)
+
+        orphans = [n for n in nodes if n.id not in connected_ids]
+        if not orphans:
+            return 0
+
+        connected_nodes = [n for n in nodes if n.id in connected_ids]
+        if not connected_nodes:
+            return 0
+
+        type_map = {
+            n.id: (n.type if isinstance(n.type, str) else n.type.value)
+            for n in nodes
+        }
+
+        def _pick_rel(orphan_type: str, partner_type: str) -> str:
+            return (
+                _ORPHAN_FALLBACK_EDGES.get((orphan_type, partner_type))
+                or _ORPHAN_FALLBACK_EDGES.get((partner_type, orphan_type))
+                or "relates-to"
+            )
+
+        new_count = 0
+
+        # ---- Embedding path ----
+        if self._embed_provider.available:
+            conn_embs = [
+                (n, self._embed_provider.embed(n.label))
+                for n in connected_nodes
+            ]
+            conn_embs = [(n, e) for n, e in conn_embs if e is not None]
+
+            for orphan in orphans:
+                orphan_emb = self._embed_provider.embed(orphan.label)
+                if orphan_emb is None:
+                    continue
+                orphan_type = type_map[orphan.id]
+                na = math.sqrt(sum(x * x for x in orphan_emb)) or 1.0
+
+                best_sim, best_partner = 0.0, None
+                for partner, pemb in conn_embs:
+                    if partner.id == orphan.id:
+                        continue
+                    nb = math.sqrt(sum(y * y for y in pemb)) or 1.0
+                    sim = sum(x * y for x, y in zip(orphan_emb, pemb)) / (na * nb)
+                    if sim > best_sim:
+                        best_sim, best_partner = sim, partner
+
+                if best_partner is not None and best_sim >= similarity_threshold:
+                    rel = _pick_rel(orphan_type, type_map[best_partner.id])
+                    self.add_edge(GraphEdge(
+                        from_id=orphan.id,
+                        to_id=best_partner.id,
+                        relation=EdgeRelation(rel),
+                        weight=round(best_sim, 3),
+                    ))
+                    connected_ids.add(orphan.id)
+                    new_count += 1
+            return new_count
+
+        # ---- Token-overlap fallback (no embeddings) ----
+        _stop = frozenset({
+            "the", "a", "an", "is", "in", "on", "at", "to", "for", "of",
+            "and", "or", "but", "with", "by", "this", "that", "it", "be",
+            "are", "was", "were", "has", "have", "had", "not",
+        })
+
+        def _tokens(label: str) -> frozenset[str]:
+            return frozenset(
+                w for w in re.findall(r"\w+", label.lower())
+                if w not in _stop and len(w) > 2
+            )
+
+        conn_tokens = [(n, _tokens(n.label)) for n in connected_nodes]
+
+        for orphan in orphans:
+            orphan_toks = _tokens(orphan.label)
+            orphan_type = type_map[orphan.id]
+            best_score, best_partner = 0, None
+            for partner, ptoks in conn_tokens:
+                shared = len(orphan_toks & ptoks)
+                if shared >= 1 and shared > best_score:
+                    best_score, best_partner = shared, partner
+            if best_partner is not None:
+                rel = _pick_rel(orphan_type, type_map[best_partner.id])
+                self.add_edge(GraphEdge(
+                    from_id=orphan.id,
+                    to_id=best_partner.id,
+                    relation=EdgeRelation(rel),
+                    weight=0.5,
+                ))
+                connected_ids.add(orphan.id)
                 new_count += 1
 
         return new_count

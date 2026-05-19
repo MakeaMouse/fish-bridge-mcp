@@ -154,6 +154,9 @@ class AbstractExtractionBackend(ABC):
         # [3b] Speculative entity check (Fix 4)
         nodes = self.speculative_check(nodes, source_text)
 
+        # [3c] File node structural reclassification
+        nodes = self._reclassify_file_nodes(nodes)
+
         # [4] Dual-signal confidence
         for node in nodes:
             node.confidence = self._compute_confidence(node, source_text)
@@ -202,6 +205,9 @@ class AbstractExtractionBackend(ABC):
                     source_url=item.get("source_url"),
                     metadata=item.get("metadata") or {},
                 )
+                # Normalize: tasks can't have 'active' status (valid for concept/skill only)
+                if node.type == NodeType.TASK and node.status == NodeStatus.ACTIVE:
+                    node.status = NodeStatus.PENDING
                 nodes.append(node)
             except Exception:
                 continue
@@ -295,6 +301,82 @@ class AbstractExtractionBackend(ABC):
         return nodes
 
     # ------------------------------------------------------------------
+    # [3c] File node structural reclassification
+    # ------------------------------------------------------------------
+
+    # Labels that confirm something IS a real file/symbol — keep as file.
+    _FILE_KEEP_RE: re.Pattern = re.compile(
+        r"\.[a-zA-Z]{1,6}$"   # has file extension (.py, .json, .yaml …)
+        r"|[/\\]"              # contains path separator
+        r"|[(\[{]"             # looks like a function/symbol call: func(
+        r"|::|__"              # C++/Python symbol markers
+        r"|^\."                # dotfile: .gitignore, .env, .npmrc
+    )
+
+    # Labels that should become task nodes (action / CI / git artefacts).
+    _FILE_TO_TASK_RE: re.Pattern = re.compile(
+        r"→"                                                      # UI nav path (Settings → Rules)
+        r"|^(commit|merge)\s+[a-f0-9]{4,}"                       # git ref: commit abc123
+        r"|^(CI|PR|MR|GH|run)\s*#?\s*\d+"                        # CI/PR run: CI #10, PR #3
+        r"|^PR\s+(title|to|review|comment|description|body)"      # PR content/submission refs
+        r"|^(job logs?|build logs?|test run|pipeline run)"        # artefact refs
+        r"|^(attached file|PR file)"                              # vague reference labels
+        r"|\s--[a-z-]"                                            # CLI command: tool --flag
+        r"|\bscript\b$"                                           # ends with 'script'
+        r"|\bIssue\s*#"                                           # GitHub issue: Issue #1-3
+        r"|\bGitHub\s+PR\b"                                       # GitHub PR for …
+        r"|\bPR\s+from\b"                                         # PR from GitHub Actions
+        r"|\bPR\s+for\b"                                          # PR for some-repo
+        r"|\s+PR$"                                                # Awesome-Repo PR
+        r"|\bworkflow\s+file\b",                                  # publish workflow file
+        re.IGNORECASE,
+    )
+
+    # Labels that should become concept nodes (structural/knowledge concepts).
+    _FILE_TO_CONCEPT_RE: re.Pattern = re.compile(
+        r"\b(repository|repo)\b"                           # repo reference (no file extension)
+        r"|^(branch protection|branch policy|ruleset)"     # config concept
+        r"|\b(settings|dashboard|panel|configuration page|admin)\b"  # UI concepts
+        r"|^[A-Z][A-Z0-9_]{2,}$"                          # ALL_CAPS env var: GITHUB_PATH
+        r"|\b(terminal|shell)\b"                           # terminal/shell references
+        r"|\b(badge|account|site|backend|process)\b"       # service / process concepts
+        r"|^(macOS|windows|linux)\b"                       # platform references
+        r"|\bform\b",                                      # web/UI form labels
+        re.IGNORECASE,
+    )
+
+    @classmethod
+    def _reclassify_file_nodes(cls, nodes: list[GraphNode]) -> list[GraphNode]:
+        """[3c] Reclassify file nodes whose labels match non-file structural patterns.
+
+        Three passes in priority order:
+          1. Keep labels that match clear file/symbol patterns (extension, path, symbol).
+          2. Reclassify to task: UI nav paths, git refs, CI/PR run refs, artefact labels.
+          3. Reclassify to concept: repo references, settings/config page names.
+
+        Reclassified nodes get metadata["reclassified_from"] = "file" for traceability.
+        """
+        for node in nodes:
+            node_type = node.type if isinstance(node.type, str) else node.type.value
+            if node_type != "file":
+                continue
+            label = node.label
+            if cls._FILE_KEEP_RE.search(label):
+                continue  # confirmed real file — leave alone
+            if cls._FILE_TO_TASK_RE.search(label):
+                node.type = NodeType.TASK
+                # Most reclassified items are completed actions — set done if currently active
+                cur_status = node.status if isinstance(node.status, str) else node.status.value
+                if cur_status == "active":
+                    node.status = NodeStatus.DONE
+                node.metadata["reclassified_from"] = "file"
+            elif cls._FILE_TO_CONCEPT_RE.search(label):
+                node.type = NodeType.CONCEPT
+                node.status = NodeStatus.ACTIVE
+                node.metadata["reclassified_from"] = "file"
+        return nodes
+
+    # ------------------------------------------------------------------
     # [4b] Fallback edge density enforcement (Fix 1 insurance net)
     # ------------------------------------------------------------------
 
@@ -306,14 +388,19 @@ class AbstractExtractionBackend(ABC):
         ("task",     "decision"):  "implements",
         ("task",     "file"):      "references",
         ("task",     "skill"):     "uses",
+        ("task",     "concept"):   "references",
+        ("task",     "task"):      "depends-on",
         ("error",    "file"):      "created-by",
         ("error",    "task"):      "blocks",
         ("decision", "concept"):   "documents",
         ("decision", "skill"):     "uses",
+        ("decision", "task"):      "implements",
         ("question", "concept"):   "references",
         ("question", "decision"):  "leads-to",
-        ("skill",    "concept"):   "relates-to",
-        ("concept",  "skill"):     "relates-to",
+        ("concept",  "task"):      "references",
+        ("concept",  "question"):  "references",
+        ("skill",    "concept"):   "uses",
+        ("concept",  "skill"):     "uses",
         ("file",     "decision"):  "implements",
         ("file",     "skill"):     "uses",
     }
@@ -420,8 +507,13 @@ class AbstractExtractionBackend(ABC):
             return 0.0
         source_lower = source_text.lower()
         grounding_ratio = sum(1 for w in words if w in source_lower) / len(words)
-        structural_score = min(1.0, grounding_ratio * 1.2)  # slight boost
-        return round((0.6 * structural_score) + (0.4 * node.confidence), 3)
+        # Short labels (≤2 words) are trivially grounded; apply length penalty
+        if len(words) <= 2:
+            grounding_ratio *= 0.75
+        # Geometric mean: both LLM self-report and structural grounding must be high.
+        # Prevents inflation to 1.0 when only one signal is strong.
+        blended = (grounding_ratio * node.confidence) ** 0.5
+        return round(min(1.0, blended), 3)
 
     # ------------------------------------------------------------------
     # PII / secret masking
