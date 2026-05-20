@@ -183,26 +183,51 @@ class _GraphHandler(BaseHTTPRequestHandler):
     # Session switcher helpers (B1)
     # ------------------------------------------------------------------
 
+    # Patterns that identify sessions which should be hidden from the switcher.
+    # Matches: pytest artifact names (test_*/tmp.*), bare UUIDs, and empty-name edges.
+    _SESSION_SKIP_RE: re.Pattern = re.compile(
+        r"^test_"                               # pytest-generated sessions
+        r"|^tmp\."                              # temporary sessions
+        r"|^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",  # raw UUIDs
+        re.IGNORECASE,
+    )
+
     def _list_sessions(self) -> str:
-        """Return a JSON array of session objects with id, nodes, and updated."""
+        """Return a JSON array of session objects with id, title, nodes, and updated.
+
+        Filters out empty sessions, pytest artifacts, temporary sessions, and
+        raw UUID-named sessions to keep the switcher list clean.  Display names
+        are read from the sidecar metadata.json in the sessions directory.
+        """
         if self.data_dir is None or not self.data_dir.exists():
             return json.dumps([])
         import datetime
+        from fish_bridge.config import load_session_metadata
+
+        name_map = load_session_metadata(self.data_dir)
         sessions = []
         for p in sorted(self.data_dir.glob("*.db")):
+            sid = p.stem
+            if self._SESSION_SKIP_RE.match(sid):
+                continue
             node_count = 0
             updated = ""
             try:
                 conn = sqlite3.connect(str(p))
                 row = conn.execute("SELECT COUNT(*) FROM nodes").fetchone()
                 node_count = row[0] if row else 0
-                # Use SQLite file mtime as fallback for updated time
                 mtime = p.stat().st_mtime
                 updated = datetime.datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
                 conn.close()
             except Exception:
                 pass
-            sessions.append({"id": p.stem, "nodes": node_count, "updated": updated})
+            if node_count == 0:
+                continue  # skip empty sessions
+            entry: dict = {"id": sid, "nodes": node_count, "updated": updated}
+            meta = name_map.get(sid, {})
+            if meta.get("title"):
+                entry["title"] = meta["title"]
+            sessions.append(entry)
         return json.dumps(sessions)
 
     def _load_session_graph(self, session_id: str) -> str:

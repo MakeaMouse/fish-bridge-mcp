@@ -1400,6 +1400,8 @@ def session_list(
     config_file: Optional[Path] = typer.Option(None, "--config", help="Config file path."),
 ) -> None:
     """List all known sessions."""
+    from fish_bridge.config import load_session_metadata
+
     cfg = load_config(config_file)
     base = _sessions_dir(cfg.data_dir)
     if not base.exists():
@@ -1411,9 +1413,12 @@ def session_list(
         console.print("[yellow]No sessions found.[/yellow]")
         return
 
+    name_map = load_session_metadata(base)
+
     from rich.table import Table
     table = Table(title="Sessions", show_header=True, header_style="bold magenta")
     table.add_column("Session ID",     style="bold")
+    table.add_column("Title",          style="cyan")
     table.add_column("Nodes",          justify="right")
     table.add_column("Last modified",  style="dim")
 
@@ -1427,7 +1432,8 @@ def session_list(
             n = "?"
         import datetime
         mtime = datetime.datetime.fromtimestamp(db_path.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
-        table.add_row(sid, str(n), mtime)
+        title = name_map.get(sid, {}).get("title", "")
+        table.add_row(sid, title, str(n), mtime)
 
     console.print(table)
 
@@ -1544,8 +1550,51 @@ def session_rename(
         sidecar = base / f"{old_name}.db{suffix}"
         if sidecar.exists():
             sidecar.rename(base / f"{new_name}.db{suffix}")
+    # Migrate display-name metadata entry
+    from fish_bridge.config import rename_session_metadata
+    rename_session_metadata(base, old_name, new_name)
 
     console.print(f"[green]✓[/green] Session [bold]{old_name}[/bold] → [bold]{new_name}[/bold]")
+
+
+@session_app.command("title")
+def session_title(
+    session_name: str            = typer.Argument(..., help="Session ID to label."),
+    title:        Optional[str]  = typer.Argument(None, help="New display title. Omit to read current title."),
+    config_file:  Optional[Path] = typer.Option(None, "--config", help="Config file path."),
+) -> None:
+    """Get or set the human-readable display title for a session.
+
+    The title is shown in the viewer session dropdown instead of the raw
+    session ID.  It is stored in a sidecar metadata.json file alongside the
+    session databases and never modifies the database itself.
+
+    Examples::
+
+        fish-bridge session title optimized-v6 "AI industry analysis and deployment readiness"
+        fish-bridge session title optimized-v6
+    """
+    from fish_bridge.config import load_session_metadata, set_session_title
+
+    cfg  = load_config(config_file)
+    base = _sessions_dir(cfg.data_dir)
+
+    if title is None:
+        # Read mode
+        meta = load_session_metadata(base)
+        current = meta.get(session_name, {}).get("title")
+        if current:
+            console.print(f"[bold]{session_name}[/bold]: {current}")
+        else:
+            console.print(f"[bold]{session_name}[/bold]: [dim](no title set)[/dim]")
+    else:
+        # Write mode
+        db_path = base / f"{session_name}.db"
+        if not db_path.exists():
+            console.print(f"[red]Session '{session_name}' not found.[/red]")
+            raise typer.Exit(1)
+        set_session_title(base, session_name, title)
+        console.print(f"[green]✓[/green] [bold]{session_name}[/bold] title → {title!r}")
 
 
 # ---------------------------------------------------------------------------

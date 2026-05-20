@@ -63,8 +63,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   fetchSessions();
   fetchGraph();
-  // Poll every 3 seconds for live updates
-  pollInterval = setInterval(fetchGraph, 3000);
+  // Poll every 3 seconds for live updates (graph data + session list)
+  pollInterval = setInterval(() => { fetchGraph(); fetchSessions(); }, 3000);
 });
 
 // ---------------------------------------------------------------------------
@@ -77,20 +77,26 @@ function fetchSessions() {
     .then(sessions => {
       if (!sessions || sessions.length <= 1) return;  // only show if >1 session
       const sel = document.getElementById('session-select');
+      const currentVal = sel.value;  // preserve selection across refreshes
       sel.innerHTML = '';
       sessions.forEach(s => {
-        // Support both old string format and new object format {id, nodes, updated}
+        // Support both old string format and new object format {id, title?, nodes, updated}
         const sid   = (typeof s === 'object') ? s.id : s;
+        const name  = (typeof s === 'object' && s.title) ? s.title : sid;
         const label = (typeof s === 'object')
-          ? `${s.id}  (${s.nodes} nodes · ${s.updated})`
+          ? `${name}  (${s.nodes} nodes · ${s.updated})`
           : s;
         const opt = document.createElement('option');
         opt.value = sid;
         opt.textContent = label;
         sel.appendChild(opt);
       });
-      // Pre-select the current session once we know it
-      if (_activeSession) sel.value = _activeSession;
+      // Restore previously-selected session (or the active one on first load)
+      if (currentVal) {
+        sel.value = currentVal;
+      } else if (_activeSession) {
+        sel.value = _activeSession;
+      }
       document.getElementById('session-switcher').style.display = 'flex';
     })
     .catch(() => {});  // no sessions endpoint = older server, hide switcher

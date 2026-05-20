@@ -278,6 +278,71 @@ def get_data_dir(config: FishBridgeConfig) -> Path:
     return Path(config.data_dir).expanduser()
 
 
+# ---------------------------------------------------------------------------
+# Session display-name metadata (sidecar metadata.json)
+# ---------------------------------------------------------------------------
+# Stored at <data_dir>/metadata.json  — same pattern used by Datasette.
+# Format: {"sessions": {"session-id": {"title": "Human-readable name"}, ...}}
+
+_SESSION_METADATA_FILE = "metadata.json"
+
+
+def load_session_metadata(data_dir: Path) -> dict[str, dict]:
+    """Return the sessions metadata dict from the sidecar file.
+
+    Returns an empty dict if the file does not exist or cannot be parsed.
+    Keys are session IDs; values are dicts with at least an optional ``title``.
+    """
+    import json
+
+    path = data_dir / _SESSION_METADATA_FILE
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8")).get("sessions", {})
+    except Exception:
+        return {}
+
+
+def _write_session_metadata(path: Path, data: dict) -> None:
+    """Atomically write session metadata using a temp file + rename."""
+    import json
+
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    tmp.replace(path)  # atomic on POSIX; best-effort on Windows
+
+
+def set_session_title(data_dir: Path, session_id: str, title: str) -> None:
+    """Set the display title for a session in the sidecar metadata file."""
+    import json
+
+    path = data_dir / _SESSION_METADATA_FILE
+    try:
+        data: dict = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except Exception:
+        data = {}
+    data.setdefault("sessions", {}).setdefault(session_id, {})["title"] = title
+    _write_session_metadata(path, data)
+
+
+def rename_session_metadata(data_dir: Path, old_id: str, new_id: str) -> None:
+    """Move the metadata entry from old_id to new_id if one exists."""
+    import json
+
+    path = data_dir / _SESSION_METADATA_FILE
+    if not path.exists():
+        return
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return
+    sessions = data.get("sessions", {})
+    if old_id in sessions:
+        sessions[new_id] = sessions.pop(old_id)
+        _write_session_metadata(path, data)
+
+
 def check_file_path_deprecations(config: FishBridgeConfig) -> list[tuple[str, str]]:
     """Return a list of (field_name, warning_message) for any deprecated file paths
     found in the user's output config.
